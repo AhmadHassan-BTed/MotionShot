@@ -26,7 +26,7 @@ Human movement is inherently transient. Whether an athlete sprinting, a dancer e
 
 **MotionShot** bridges high-speed mobile computer vision with human kinetic expression. Inspired by Sony's legacy Motion Shot technology, MotionShot captures dynamic action bursts and synthesizes a single, multi-pose stroboscopic composite image directly on-device in real time.
 
-Operating entirely offline with zero cloud latency and zero reliance on heavy AI neural networks, MotionShot renders motion as an aligned visual trajectory—sharp, stabilized, and captured in full sensor resolution.
+Operating entirely offline with zero cloud latency and zero reliance on heavy AI neural networks, MotionShot renders motion as an aligned visual trajectory: sharp, stabilized, and captured in full sensor resolution.
 
 <br />
 
