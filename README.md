@@ -1,93 +1,132 @@
 <div align="center">
+  <img src=".github/assets/App_Banner.png" alt="MotionShot Banner" width="100%" />
 
-<img src=".github/assets/App_Banner.png" alt="MotionShot Banner" width="100%" />
+  <br />
+  <br />
+
+  <h1>MotionShot</h1>
+  <p><b>High-Performance Stroboscopic Action Sequence Camera for Android</b></p>
+
+  <p>
+    <a href="https://github.com/AhmadHassan-BTed/MotionShot"><img src="https://img.shields.io/badge/Project_Status-Production-2EA44F?style=for-the-badge&logo=github&logoColor=white" alt="Status" /></a>
+    <img src="https://img.shields.io/badge/Platform-Android%20API%2024%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Platform" />
+    <img src="https://img.shields.io/badge/Language-Kotlin%202.2-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Language" />
+    <img src="https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?style=for-the-badge&logo=android&logoColor=white" alt="UI" />
+    <img src="https://img.shields.io/badge/License-MIT-FFB800?style=for-the-badge" alt="License" />
+  </p>
+
+  <p><i>Engineered and maintained by <b>Ahmad Hassan (B-Ted)</b></i></p>
+</div>
 
 <br />
+
+## Overview & Vision
+
+Human movement is inherently transient. Whether an athlete sprinting, a dancer executing a spin, a gymnast mid-air, or a child jumping, fleeting physical motion unfolds and vanishes within fractions of a second.
+
+**MotionShot** bridges high-speed mobile computer vision with human kinetic expression. Inspired by Sony's legacy Motion Shot technology, MotionShot captures dynamic action bursts and synthesizes a single, multi-pose stroboscopic composite image directly on-device in real time.
+
+Operating entirely offline with zero cloud latency and zero reliance on heavy AI neural networks, MotionShot renders motion as an aligned visual trajectory—sharp, stabilized, and captured in full sensor resolution.
+
 <br />
 
-[![Android](https://img.shields.io/badge/Platform-Android%20API%2024%2B-brightgreen.svg?style=for-the-badge&logo=android)](https://developer.android.com)
-[![Kotlin](https://img.shields.io/badge/Language-Kotlin%202.2-blue.svg?style=for-the-badge&logo=kotlin)](https://kotlinlang.org)
-[![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-purple.svg?style=for-the-badge&logo=android)](https://developer.android.com/jetpack/compose)
-[![Architecture](https://img.shields.io/badge/Architecture-Clean%20%2F%20Contract--Based-informational.svg?style=for-the-badge)](docs/architecture.md)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+## Visual Showcase
 
-*Designed, engineered, and maintained by **Ahmad Hassan (B-Ted)**.*
+<div align="center">
 
----
+| Camera Viewfinder | Hardware Sliders | Step 1 Raw Gallery | Composite Result |
+| :---: | :---: | :---: | :---: |
+| <img src=".github/assets/demo1.jpg" width="210" alt="Viewfinder" /> | <img src=".github/assets/demo2" width="210" alt="Sliders" /> | <img src=".github/assets/demo3.jpg" width="210" alt="Raw Gallery" /> | <img src=".github/assets/demo4.jpg" width="210" alt="Composite Result" /> |
 
 </div>
 
-## 🌌 Vision & Human Connection
+<br />
 
-Human movement is inherently transient. Whether it is a gymnast mid-air, a dancer in motion, an athlete sprinting, or a child jumping, fleeting moments unfold and disappear in fractions of a second.
+## Technical Specifications
 
-**MotionShot** bridges low-latency mobile computer vision with human expression. Inspired by Sony's legacy Motion Shot technology, MotionShot captures high-speed motion sequences and synthesizes a single, multi-pose stroboscopic composite image directly on-device.
+| Parameter | Specification & Range | Engineering Function |
+| :--- | :--- | :--- |
+| **Timer Window** | `1s`, `2s`, `5s`, `Custom (1–60s)` | Dynamic sequence capture deadline |
+| **Frame Count** | `5`, `15`, `25`, `Custom (2–50)` | Trajectory density sampling points |
+| **Shutter Speed** | `Auto`, `1/30s` to `1/8000s` | Logarithmic hardware motion-freeze slider |
+| **ISO Sensitivity** | `Auto`, `ISO 50` to `ISO 102,400` | Continuous sensor gain boost |
+| **Stabilization** | $\pm 16\text{px}$ 2D translation search | Sub-5ms background micro-jitter alignment |
+| **Blending Engine** | `PorterDuff.Mode.SRC_OVER` | Sequential alpha layer compositing |
+| **Persistence** | `SharedPreferences` | Automatic parameter restoration across sessions |
 
-Without relying on cloud servers or heavy AI models, MotionShot turns rapid physical motion into an artistic physical trajectory—sharp, stabilized, and captured in high resolution.
+<br />
 
----
+## Key Features
 
-## 📸 Visual Showcase
+- **Pixel-to-Pixel Handheld Image Stabilization**: The 2D translation alignment engine (`ImageStabilizer`) correlates background grid pixels across frames, locking static elements in place to eliminate camera shake.
+- **Normalized Chromaticity Motion Differencing**: Evaluates $r, g$ color space ratios alongside BT.601 luminance separation, making motion detection 100% immune to camera exposure shifts and shadows.
+- **High Shutter Speed Freeze-Frame Control**: Manual shutter speed control down to `1/8000s` ($125\,\mu\text{s}$ exposure) freezes ultra-fast movement without motion blur.
+- **Extended ISO Gain Boost**: Manual ISO control scaling up to **ISO 102,400** maintains crisp image brightness even under high shutter speeds in low light.
+- **Fast Motion Slide & Auto-Play Flipbook Preview**: Interactive touch-drag preview and a `▶ Play` button (15 FPS flipbook) allow instant sequence verification before finalizing.
+- **Pluggable Engine Architecture**: Decoupled `MotionEngine` interface and `MotionEngineFactory` allow instant engine swapping without modifying UI state logic.
 
-| Camera Interface | Hardware Controls & Sliders | Raw Flipbook Gallery | Action Sequence Output |
-|:---:|:---:|:---:|:---:|
-| <img src=".github/assets/demo1.jpg" width="210" alt="Camera Viewfinder" /> | <img src=".github/assets/demo2" width="210" alt="Hardware Sliders" /> | <img src=".github/assets/demo3.jpg" width="210" alt="Step 1 Gallery" /> | <img src=".github/assets/demo4.jpg" width="210" alt="Action Sequence Composite" /> |
+<br />
 
----
+## Architecture Overview
 
-## 🏛️ Architecture Overview
-
-MotionShot follows a **Contract-Based Architecture** with total separation between UI presentation, domain contracts, mathematical image processing engines, and Camera2 hardware controls.
+MotionShot follows a strict **Contract-Based Clean Architecture**, decoupling UI presentation, state orchestration, image processing algorithms, and Camera2 hardware controls.
 
 ```mermaid
 graph TD
-    subgraph Presentation["UI & Presentation Layer"]
-        MA[MainActivity] --> CS[CameraScreen]
-        CS --> CP[CameraPreview Viewfinder]
-        CS --> CC[CaptureControls Sheet & Sliders]
-        CS --> RV[Step1ResultView Flipbook Gallery]
+    classDef ui fill:#1b3233,stroke:#5cdec8,stroke-width:1.5px,color:#eae6f0;
+    classDef domain fill:#1e2638,stroke:#b088f0,stroke-width:1.5px,color:#eae6f0;
+    classDef engine fill:#2e2a3a,stroke:#d4af6e,stroke-width:1.5px,color:#eae6f0;
+    classDef hw fill:#2a1e28,stroke:#ff8c00,stroke-width:1.5px,color:#eae6f0;
+
+    subgraph Presentation["Presentation Layer (Jetpack Compose)"]
+        MA[MainActivity] ::: ui --> CS[CameraScreen] ::: ui
+        CS --> CP[CameraPreview Viewfinder] ::: ui
+        CS --> CC[CaptureControls Sheet & Sliders] ::: ui
+        CS --> RV[Step1ResultView Flipbook Gallery] ::: ui
     end
 
-    subgraph Domain["Domain & Engine Contracts"]
-        VM[MotionShotViewModel] --> |Preferences| PR[PreferencesRepository]
-        VM --> |Pluggable Contract| ME[MotionEngine Interface]
+    subgraph Domain["Domain Contracts & Storage"]
+        VM[MotionShotViewModel] ::: domain --> |Preferences| PR[PreferencesRepository] ::: domain
+        VM --> |Pluggable Contract| ME[MotionEngine Interface] ::: domain
     end
 
-    subgraph Engine["Processing Engine Realization"]
-        ME --> FDEM[FastDifferenceMotionEngine]
-        FDEM --> STAB[ImageStabilizer Engine]
-        FDEM --> DIFF[FrameDifferencer Engine]
-        FDEM --> MORPH[MorphologyOps Engine]
-        FDEM --> CCMP[CanvasCompositor Engine]
+    subgraph Engine["Image Processing Realizations"]
+        ME --> FDEM[FastDifferenceMotionEngine] ::: engine
+        FDEM --> STAB[ImageStabilizer Engine] ::: engine
+        FDEM --> DIFF[FrameDifferencer Engine] ::: engine
+        FDEM --> MORPH[MorphologyOps Engine] ::: engine
+        FDEM --> CCMP[CanvasCompositor Engine] ::: engine
     end
 
-    subgraph Hardware["Hardware Capture Layer"]
-        VM --> FA[FrameAnalyzer]
-        FA --> YR[Native C++ YuvToRgb]
-        VM --> C2[Camera2Interop Hardware Control]
+    subgraph Hardware["Hardware Capture Layer (CameraX / Camera2)"]
+        VM --> FA[FrameAnalyzer] ::: hw
+        FA --> YR[Native C++ YuvToRgb] ::: hw
+        VM --> C2[Camera2Interop Control] ::: hw
         C2 --> CP
     end
 ```
 
----
+<br />
 
-## ⚙️ Technical Processing Pipeline
+## Technical Processing Pipeline
 
-Every captured sequence passes through a zero-allocation processing pipeline designed to eliminate handheld jitter and exposure noise.
+Each captured frame sequence moves through a zero-allocation processing pipeline:
 
 ```mermaid
 flowchart TD
-    A["Raw Frame Burst (N Frames)"] --> B["1. Handheld 2D Alignment (ImageStabilizer)"]
-    B --> C["2. Normalized Chromaticity Differencing (FrameDifferencer)"]
-    C --> D["3. 3x3 Morphological Opening (MorphologyOps)"]
-    D --> E["4. Soft Contour Edge Feathering"]
-    E --> F["5. Sequence Alpha Decay (CanvasCompositor)"]
-    F --> G["Final Stroboscopic Composite"]
+    classDef step fill:#1e2638,stroke:#b088f0,stroke-width:1.5px,color:#eae6f0;
+    
+    A["Raw Frame Burst (N Frames)"] ::: step --> B["1. 2D Translation Alignment (ImageStabilizer)"] ::: step
+    B --> C["2. Normalized Chromaticity Differencing (FrameDifferencer)"] ::: step
+    C --> D["3. 3x3 Morphological Opening (MorphologyOps)"] ::: step
+    D --> E["4. Soft Contour Edge Feathering"] ::: step
+    E --> F["5. Sequence Alpha Decay (CanvasCompositor)"] ::: step
+    F --> G["Final Stroboscopic Composite Image"] ::: step
 ```
 
----
+<br />
 
-## 🔄 Frame Acquisition & Request Lifecycle
+## Request Lifecycle & Frame Acquisition
 
 ```mermaid
 sequenceDiagram
@@ -104,7 +143,7 @@ sequenceDiagram
     
     loop Dynamic Time Window (T / N-1)
         VM->>Analyzer: shouldCapture.set(true)
-        Analyzer-->>VM: frameChannel.receive() [Time-Bounded Timeout]
+        Analyzer-->>VM: frameChannel.receive() [Time-Bounded Timeout Guard]
     end
 
     VM->>Engine: process(capturedFrames)
@@ -116,27 +155,12 @@ sequenceDiagram
     VM->>UI: Phase = Done (Show Result & Interactive Flipbook)
 ```
 
----
+<br />
 
-## 🧩 Internal Module Boundaries & Dependencies
-
-```mermaid
-graph LR
-    subgraph App["app module"]
-        A[ui] --> B[viewmodel]
-        B --> C[domain / engine contracts]
-        B --> D[data / preferences]
-        E[processing] --> C
-        F[capture] --> B
-    end
-```
-
----
-
-## 🔬 Technical Deep-Dives
+## Technical Deep-Dives
 
 <details>
-<summary><b>📐 1. Handheld 2D Translation Alignment Engine</b></summary>
+<summary><b>1. Handheld 2D Translation Alignment Mathematics</b></summary>
 
 <br />
 
@@ -149,7 +173,7 @@ Target frame pixels are shifted by $(\Delta x, \Delta y)$ prior to motion differ
 </details>
 
 <details>
-<summary><b>🎨 2. Normalized Chromaticity Color Space ($r, g$)</b></summary>
+<summary><b>2. Normalized Chromaticity Color Space (r, g)</b></summary>
 
 <br />
 
@@ -162,7 +186,7 @@ Combining chromaticity distance $\Delta_{\text{chroma}} = |r_1 - r_0| + |g_1 - g
 </details>
 
 <details>
-<summary><b>⚡ 3. Hardware Exposure & ISO Control</b></summary>
+<summary><b>3. Camera2 Hardware Exposure & ISO Interop</b></summary>
 
 <br />
 
@@ -174,23 +198,9 @@ High shutter speeds (1/500s to 1/8000s) eliminate subject motion blur. CameraX p
 
 </details>
 
----
+<br />
 
-## 📊 Technical Specifications Matrix
-
-| Feature Parameter | Specification / Range | Description |
-|---|---|---|
-| **Timer Window** | 1s, 2s, 5s, Custom (1–60s) | Total continuous capture duration |
-| **Frame Count** | 5, 15, 25, Custom (2–50 frames) | Sequence density points |
-| **Shutter Speed** | `Auto`, 1/30s to 1/8000s | Logarithmic motion freeze slider |
-| **ISO Sensitivity** | `Auto`, ISO 50 to ISO 102,400 | Continuous sensor gain slider |
-| **Alignment Search** | $\pm 16\text{px}$ search window | Sub-5ms 2D translation stabilization |
-| **Compositing Blending** | `PorterDuff.Mode.SRC_OVER` | Sequential alpha layer stamping |
-| **Settings Storage** | `SharedPreferences` | Automatic settings persistence across launches |
-
----
-
-## 🛠️ Project Structure
+## Repository Structure
 
 ```text
 bted.app.motionshot/
@@ -223,20 +233,17 @@ bted.app.motionshot/
     └── MotionShotViewModel.kt # StateFlow, preferences, capture loop, engine dispatcher
 ```
 
----
+<br />
 
-## 🔄 Build & CI/CD Pipeline
+## Building & Requirements
 
-```mermaid
-flowchart LR
-    A[Code Push / PR] --> B[GitHub Actions Runner]
-    B --> C[Set up JDK 17]
-    C --> D[Run Unit Tests ./gradlew test]
-    D --> E[Build Debug APK ./gradlew assembleDebug]
-    E --> F[Upload Artifact app-debug.apk]
-```
+### System Requirements
+- **Android Studio**: Ladybug / Jellyfish or newer
+- **Android SDK**: Compile SDK 37 (Min SDK 24)
+- **Kotlin**: 2.2.10
+- **Gradle**: 8.13+
 
-### Building Locally
+### Local Build Commands
 
 ```bash
 # Clone the repository
@@ -246,37 +253,12 @@ cd MotionShot
 # Execute unit tests
 ./gradlew test
 
-# Assemble Debug APK
+# Build Debug APK
 ./gradlew assembleDebug
 ```
 
----
+<br />
 
-## 🤝 Community & Documentation Links
-
-- 📐 [Architecture Guide](docs/architecture.md)
-- 🔄 [System Design & Sequence Flow](docs/system-design.md)
-- 📝 [Architecture Decision Records (ADRs)](docs/technical-decisions.md)
-- 🚀 [Product Roadmap](docs/ROADMAP.md)
-- 💬 [Getting Support](docs/SUPPORT.md)
-- 🤝 [Contributing Guidelines](CONTRIBUTING.md)
-- 🔐 [Security Policy](.github/SECURITY.md)
-- 📜 [Code of Conduct](.github/CODE_OF_CONDUCT.md)
-
----
-
-## 🏷️ GitHub Topics
-
-`android` · `camerax` · `motion-shot` · `stroboscopic-camera` · `jetpack-compose` · `kotlin` · `image-processing` · `action-camera` · `motion-overlay` · `computer-vision`
-
-```bash
-gh repo edit --add-topic android,camerax,motion-shot,stroboscopic-camera,jetpack-compose,kotlin,image-processing,action-camera,motion-overlay,computer-vision
-```
-
----
-
-## 📜 License
-
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
-
-*Engineered by **Ahmad Hassan (B-Ted)**.*
+<div align="center">
+  <p><i>Engineered and maintained by <b>Ahmad Hassan (B-Ted)</b></i></p>
+</div>
