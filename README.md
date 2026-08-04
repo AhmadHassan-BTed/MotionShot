@@ -1,8 +1,9 @@
 <div align="center">
 
-# 📷 MotionShot
+<img src=".github/assets/App_Banner.png" alt="MotionShot Banner" width="100%" />
 
-### Freezing Human Motion in Time — High-Performance Stroboscopic Action Camera
+<br />
+<br />
 
 [![Android](https://img.shields.io/badge/Platform-Android%20API%2024%2B-brightgreen.svg?style=for-the-badge&logo=android)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin%202.2-blue.svg?style=for-the-badge&logo=kotlin)](https://kotlinlang.org)
@@ -18,7 +19,7 @@
 
 ## 🌌 Vision & Human Connection
 
-Human movement is inherently transient. Whether it is a gymnast mid-air, a dancer in motion, a athlete sprinting, or a child jumping, fleeting moments unfold and disappear in fractions of a second.
+Human movement is inherently transient. Whether it is a gymnast mid-air, a dancer in motion, an athlete sprinting, or a child jumping, fleeting moments unfold and disappear in fractions of a second.
 
 **MotionShot** bridges low-latency mobile computer vision with human expression. Inspired by Sony's legacy Motion Shot technology, MotionShot captures high-speed motion sequences and synthesizes a single, multi-pose stroboscopic composite image directly on-device.
 
@@ -28,7 +29,7 @@ Without relying on cloud servers or heavy AI models, MotionShot turns rapid phys
 
 ## 📸 Visual Showcase
 
-| Camera & Sliders | Controls & Settings | Raw Flipbook Gallery | Action Sequence Output |
+| Camera Interface | Hardware Controls & Sliders | Raw Flipbook Gallery | Action Sequence Output |
 |:---:|:---:|:---:|:---:|
 | <img src=".github/assets/demo1.jpg" width="210" alt="Camera Viewfinder" /> | <img src=".github/assets/demo2" width="210" alt="Hardware Sliders" /> | <img src=".github/assets/demo3.jpg" width="210" alt="Step 1 Gallery" /> | <img src=".github/assets/demo4.jpg" width="210" alt="Action Sequence Composite" /> |
 
