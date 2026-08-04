@@ -1,15 +1,18 @@
+# Android & Gradle Build Artifacts
 *.iml
 .gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
 /build
+/app/build
 /captures
+
+# IDE & OS Configuration
+/.idea
+.DS_Store
+*.swp
+*~
+local.properties
 .externalNativeBuild
 .cxx
-local.properties
+
+# Gemini / IDE Logs
+.gemini

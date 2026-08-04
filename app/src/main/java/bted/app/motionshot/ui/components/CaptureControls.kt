@@ -33,7 +33,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -52,17 +51,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import bted.app.motionshot.ui.state.CameraParameterUtils
 import bted.app.motionshot.ui.state.CapturePhase
 import bted.app.motionshot.ui.state.MotionShotUiState
-import bted.app.motionshot.ui.state.ShutterSpeedUtils
 import bted.app.motionshot.ui.theme.MotionBlue
 import bted.app.motionshot.ui.theme.MotionPanelRing
 import bted.app.motionshot.ui.theme.MotionPanelText
 import bted.app.motionshot.ui.theme.MotionPanelTextMuted
-import kotlin.math.roundToInt
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Public: ultra-compact capture controls with Shutter Speed SLIDER
+// Public: ultra-compact capture controls with Continuous Shutter & ISO Sliders
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -71,6 +69,7 @@ fun CaptureControls(
     onTimerSelected: (Int) -> Unit,
     onFrameCountSelected: (Int) -> Unit,
     onShutterSpeedSelected: (Long) -> Unit,
+    onIsoSelected: (Int) -> Unit,
     onCaptureToggle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -113,12 +112,31 @@ fun CaptureControls(
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
-        // ── Shutter Speed SLIDER ─────────────────────────────────────────
-        ShutterSliderRow(
-            shutterSpeedNs = state.shutterSpeedNs,
-            onSpeedSelected = onShutterSpeedSelected,
+        // ── Continuous Shutter Speed Slider ─────────────────────────────
+        ContinuousSliderRow(
+            label = "SHUTTER",
+            valueText = CameraParameterUtils.getShutterLabel(state.shutterSpeedNs),
+            progress = CameraParameterUtils.shutterNsToProgress(state.shutterSpeedNs),
+            onProgressChanged = { p ->
+                val newNs = CameraParameterUtils.shutterProgressToNs(p)
+                onShutterSpeedSelected(newNs)
+            },
+            enabled = isIdle,
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // ── Continuous ISO Slider ────────────────────────────────────────
+        ContinuousSliderRow(
+            label = "ISO",
+            valueText = CameraParameterUtils.getIsoLabel(state.isoValue),
+            progress = CameraParameterUtils.isoValueToProgress(state.isoValue),
+            onProgressChanged = { p ->
+                val newIso = CameraParameterUtils.isoProgressToValue(p)
+                onIsoSelected(newIso)
+            },
             enabled = isIdle,
         )
 
@@ -170,18 +188,17 @@ fun CaptureControls(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Shutter Speed SLIDER Row
+// Continuous Slider Row (Shutter / ISO)
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun ShutterSliderRow(
-    shutterSpeedNs: Long,
-    onSpeedSelected: (Long) -> Unit,
+private fun ContinuousSliderRow(
+    label: String,
+    valueText: String,
+    progress: Float,
+    onProgressChanged: (Float) -> Unit,
     enabled: Boolean,
 ) {
-    val currentStep = ShutterSpeedUtils.exposureToStepIndex(shutterSpeedNs).toFloat()
-    val speedLabel = ShutterSpeedUtils.getLabel(shutterSpeedNs)
-
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth(),
@@ -191,14 +208,14 @@ private fun ShutterSliderRow(
             horizontalArrangement = Arrangement.Center,
         ) {
             Text(
-                text = "SHUTTER: ",
+                text = "$label: ",
                 color = MotionPanelTextMuted.copy(alpha = 0.55f),
                 fontSize = 9.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 1.5.sp,
             )
             Text(
-                text = speedLabel,
+                text = valueText,
                 color = MotionBlue,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
@@ -206,29 +223,18 @@ private fun ShutterSliderRow(
         }
 
         Slider(
-            value = currentStep,
-            onValueChange = { step ->
-                if (enabled) {
-                    val roundedStep = step.roundToInt()
-                    val newExposure = ShutterSpeedUtils.stepIndexToExposure(roundedStep)
-                    if (newExposure != shutterSpeedNs) {
-                        onSpeedSelected(newExposure)
-                    }
-                }
-            },
-            valueRange = 0f..6f,
-            steps = 5,
+            value = progress,
+            onValueChange = { p -> if (enabled) onProgressChanged(p) },
+            valueRange = 0f..1f,
             enabled = enabled,
             colors = SliderDefaults.colors(
                 thumbColor = MotionBlue,
                 activeTrackColor = MotionBlue,
                 inactiveTrackColor = MotionPanelRing,
-                activeTickColor = Color.White,
-                inactiveTickColor = MotionPanelTextMuted,
             ),
             modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .height(28.dp),
+                .fillMaxWidth(0.92f)
+                .height(24.dp),
         )
     }
 }

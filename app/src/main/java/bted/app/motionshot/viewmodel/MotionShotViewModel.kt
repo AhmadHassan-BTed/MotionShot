@@ -62,6 +62,10 @@ class MotionShotViewModel(
         _uiState.update { it.copy(shutterSpeedNs = shutterSpeedNs) }
     }
 
+    fun setIsoValue(iso: Int) {
+        _uiState.update { it.copy(isoValue = iso) }
+    }
+
     fun selectRawFrame(index: Int) {
         if (index in 0 until _rawFrames.value.size) {
             _selectedFrameIndex.value = index

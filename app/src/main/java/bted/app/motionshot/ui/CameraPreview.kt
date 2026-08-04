@@ -32,12 +32,13 @@ import bted.app.motionshot.capture.FrameAnalyzer
 import java.util.concurrent.Executors
 
 /**
- * Full-bleed CameraX preview with real-time shutter speed control.
+ * Full-bleed CameraX preview with real-time Shutter Speed and ISO controls.
  */
 @Composable
 fun CameraPreview(
     analyzer: FrameAnalyzer,
     shutterSpeedNs: Long,
+    isoValue: Int,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -60,14 +61,24 @@ fun CameraPreview(
 
     var activeCamera2Control by remember { mutableStateOf<Camera2CameraControl?>(null) }
 
-    // Dynamic Shutter Speed Update
-    LaunchedEffect(shutterSpeedNs, activeCamera2Control) {
+    // Dynamic Hardware Parameter Updates (Shutter Speed & ISO)
+    LaunchedEffect(shutterSpeedNs, isoValue, activeCamera2Control) {
         val camera2Control = activeCamera2Control ?: return@LaunchedEffect
         val builder = CaptureRequestOptions.Builder()
 
-        if (shutterSpeedNs > 0L) {
+        val isShutterManual = shutterSpeedNs > 0L
+        val isIsoManual = isoValue > 0
+
+        if (isShutterManual || isIsoManual) {
             builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
-            builder.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, shutterSpeedNs)
+
+            if (isShutterManual) {
+                builder.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, shutterSpeedNs)
+            }
+
+            if (isIsoManual) {
+                builder.setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, isoValue)
+            }
         } else {
             builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
         }

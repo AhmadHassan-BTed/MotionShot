@@ -145,6 +145,7 @@ private fun CameraContent(
         CameraPreview(
             analyzer = viewModel.frameAnalyzer,
             shutterSpeedNs = state.shutterSpeedNs,
+            isoValue = state.isoValue,
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -159,6 +160,7 @@ private fun CameraContent(
                 onTimerSelected = viewModel::setTimer,
                 onFrameCountSelected = viewModel::setCaptureCount,
                 onShutterSpeedSelected = viewModel::setShutterSpeed,
+                onIsoSelected = viewModel::setIsoValue,
                 onCaptureToggle = viewModel::onCaptureToggle,
                 modifier = Modifier.navigationBarsPadding(),
             )
