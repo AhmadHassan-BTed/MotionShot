@@ -73,35 +73,30 @@ MotionShot follows a strict **Contract-Based Clean Architecture**, decoupling UI
 
 ```mermaid
 graph TD
-    classDef ui fill:#1b3233,stroke:#5cdec8,stroke-width:1.5px,color:#eae6f0;
-    classDef domain fill:#1e2638,stroke:#b088f0,stroke-width:1.5px,color:#eae6f0;
-    classDef engine fill:#2e2a3a,stroke:#d4af6e,stroke-width:1.5px,color:#eae6f0;
-    classDef hw fill:#2a1e28,stroke:#ff8c00,stroke-width:1.5px,color:#eae6f0;
-
     subgraph Presentation["Presentation Layer (Jetpack Compose)"]
-        MA[MainActivity] ::: ui --> CS[CameraScreen] ::: ui
-        CS --> CP[CameraPreview Viewfinder] ::: ui
-        CS --> CC[CaptureControls Sheet & Sliders] ::: ui
-        CS --> RV[Step1ResultView Flipbook Gallery] ::: ui
+        MA[MainActivity] --> CS[CameraScreen]
+        CS --> CP[CameraPreview Viewfinder]
+        CS --> CC[CaptureControls Sheet & Sliders]
+        CS --> RV[Step1ResultView Flipbook Gallery]
     end
 
     subgraph Domain["Domain Contracts & Storage"]
-        VM[MotionShotViewModel] ::: domain --> |Preferences| PR[PreferencesRepository] ::: domain
-        VM --> |Pluggable Contract| ME[MotionEngine Interface] ::: domain
+        VM[MotionShotViewModel] --> |Preferences| PR[PreferencesRepository]
+        VM --> |Pluggable Contract| ME[MotionEngine Interface]
     end
 
     subgraph Engine["Image Processing Realizations"]
-        ME --> FDEM[FastDifferenceMotionEngine] ::: engine
-        FDEM --> STAB[ImageStabilizer Engine] ::: engine
-        FDEM --> DIFF[FrameDifferencer Engine] ::: engine
-        FDEM --> MORPH[MorphologyOps Engine] ::: engine
-        FDEM --> CCMP[CanvasCompositor Engine] ::: engine
+        ME --> FDEM[FastDifferenceMotionEngine]
+        FDEM --> STAB[ImageStabilizer Engine]
+        FDEM --> DIFF[FrameDifferencer Engine]
+        FDEM --> MORPH[MorphologyOps Engine]
+        FDEM --> CCMP[CanvasCompositor Engine]
     end
 
     subgraph Hardware["Hardware Capture Layer (CameraX / Camera2)"]
-        VM --> FA[FrameAnalyzer] ::: hw
-        FA --> YR[Native C++ YuvToRgb] ::: hw
-        VM --> C2[Camera2Interop Control] ::: hw
+        VM --> FA[FrameAnalyzer]
+        FA --> YR[Native C++ YuvToRgb]
+        VM --> C2[Camera2Interop Control]
         C2 --> CP
     end
 ```
@@ -114,14 +109,12 @@ Each captured frame sequence moves through a zero-allocation processing pipeline
 
 ```mermaid
 flowchart TD
-    classDef step fill:#1e2638,stroke:#b088f0,stroke-width:1.5px,color:#eae6f0;
-    
-    A["Raw Frame Burst (N Frames)"] ::: step --> B["1. 2D Translation Alignment (ImageStabilizer)"] ::: step
-    B --> C["2. Normalized Chromaticity Differencing (FrameDifferencer)"] ::: step
-    C --> D["3. 3x3 Morphological Opening (MorphologyOps)"] ::: step
-    D --> E["4. Soft Contour Edge Feathering"] ::: step
-    E --> F["5. Sequence Alpha Decay (CanvasCompositor)"] ::: step
-    F --> G["Final Stroboscopic Composite Image"] ::: step
+    A["Raw Frame Burst (N Frames)"] --> B["1. 2D Translation Alignment (ImageStabilizer)"]
+    B --> C["2. Normalized Chromaticity Differencing (FrameDifferencer)"]
+    C --> D["3. 3x3 Morphological Opening (MorphologyOps)"]
+    D --> E["4. Soft Contour Edge Feathering"]
+    E --> F["5. Sequence Alpha Decay (CanvasCompositor)"]
+    F --> G["Final Stroboscopic Composite Image"]
 ```
 
 <br />
@@ -135,7 +128,7 @@ sequenceDiagram
     participant UI as CameraScreen / Controls
     participant VM as MotionShotViewModel
     participant Analyzer as FrameAnalyzer
-    participant Engine as MotionEngine Engine
+    participant Engine as MotionEngine
 
     User->>UI: Tap Capture Button
     UI->>VM: onCaptureToggle()
