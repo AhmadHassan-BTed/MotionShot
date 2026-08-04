@@ -37,11 +37,15 @@ object CameraParameterUtils {
         return "1/${denominator}s"
     }
 
-    // ── Extended Continuous ISO Mapping (ISO 50 to ISO 25600) ───────────
+    // ── Ultra-Extended ISO Mapping (ISO 50 to ISO 102400 Boost) ────────
     private const val MIN_ISO = 50
-    private const val MAX_ISO = 25600
+    private const val MAX_ISO = 102400
 
-    fun isoProgressToValue(progress: Float): Int {
+    fun isoProgressToValue(progress: Float): Float {
+        return progress.coerceIn(0f, 1f)
+    }
+
+    fun isoProgressToActualIso(progress: Float): Int {
         if (progress <= 0.02f) return 0 // 0 = Auto ISO
         val p = ((progress - 0.02f) / 0.98f).coerceIn(0f, 1f)
         val logMin = ln(MIN_ISO.toDouble())
@@ -61,7 +65,7 @@ object CameraParameterUtils {
 
     fun getIsoLabel(iso: Int): String {
         if (iso <= 0) return "Auto"
-        return "ISO $iso"
+        return if (iso >= 1000) "${iso / 1000}k ISO" else "ISO $iso"
     }
 }
 
@@ -69,8 +73,8 @@ object CameraParameterUtils {
  * Full UI state for MotionShot camera screen.
  */
 data class MotionShotUiState(
-    val timerSeconds: Int = 5,
-    val captureCount: Int = 10,
+    val timerSeconds: Int = 2,
+    val captureCount: Int = 15,
     val shutterSpeedNs: Long = 2_000_000L, // Default 1/500s
     val isoValue: Int = 0,                  // Default Auto ISO
     val framesCaptured: Int = 0,

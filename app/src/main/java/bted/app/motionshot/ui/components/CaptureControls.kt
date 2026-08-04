@@ -92,7 +92,7 @@ fun CaptureControls(
         ) {
             SelectorColumn(
                 label = "TIMER",
-                presetOptions = listOf(3, 5, 10),
+                presetOptions = listOf(1, 2, 5),
                 selected = state.timerSeconds,
                 onSelected = onTimerSelected,
                 onCustomClick = { if (isIdle) showCustomTimerDialog = true },
@@ -102,7 +102,7 @@ fun CaptureControls(
             )
             SelectorColumn(
                 label = "FRAMES",
-                presetOptions = listOf(5, 10, 20),
+                presetOptions = listOf(5, 15, 25),
                 selected = state.captureCount,
                 onSelected = onFrameCountSelected,
                 onCustomClick = { if (isIdle) showCustomFrameDialog = true },
@@ -134,7 +134,7 @@ fun CaptureControls(
             valueText = CameraParameterUtils.getIsoLabel(state.isoValue),
             progress = CameraParameterUtils.isoValueToProgress(state.isoValue),
             onProgressChanged = { p ->
-                val newIso = CameraParameterUtils.isoProgressToValue(p)
+                val newIso = CameraParameterUtils.isoProgressToActualIso(p)
                 onIsoSelected(newIso)
             },
             enabled = isIdle,

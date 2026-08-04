@@ -1,18 +1,12 @@
-# Android & Gradle Build Artifacts
 *.iml
 .gradle
 /build
 /app/build
 /captures
-
-# IDE & OS Configuration
 /.idea
 .DS_Store
-*.swp
-*~
 local.properties
 .externalNativeBuild
 .cxx
-
-# Gemini / IDE Logs
 .gemini
+.env

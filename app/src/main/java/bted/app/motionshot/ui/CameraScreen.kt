@@ -14,6 +14,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
@@ -46,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -60,18 +63,18 @@ import bted.app.motionshot.ui.state.CapturePhase
 import bted.app.motionshot.ui.state.MotionShotUiState
 import bted.app.motionshot.ui.theme.MotionBlue
 import bted.app.motionshot.ui.theme.MotionPanel
-import bted.app.motionshot.ui.theme.MotionPanelRing
 import bted.app.motionshot.ui.theme.MotionPanelText
 import bted.app.motionshot.ui.theme.MotionPanelTextMuted
 import bted.app.motionshot.ui.theme.MotionSurface
 import bted.app.motionshot.ui.theme.MotionTextMuted
 import bted.app.motionshot.ui.theme.MotionTextPrimary
 import bted.app.motionshot.viewmodel.MotionShotViewModel
+import kotlinx.coroutines.delay
 
 private val PanelShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
 
 /**
- * Root screen supporting Step 1: Raw Frame Inspection Gallery & Step-by-step verification.
+ * Root screen supporting Step 1: Raw Frame Inspection Gallery & Fast Slide Auto Preview.
  */
 @Composable
 fun CameraScreen(
@@ -84,7 +87,6 @@ fun CameraScreen(
     val rawFrames by viewModel.rawFrames.collectAsStateWithLifecycle()
     val selectedFrameIndex by viewModel.selectedFrameIndex.collectAsStateWithLifecycle()
 
-    // ── Permission gate ──────────────────────────────────────────────────
     var hasPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
@@ -104,7 +106,6 @@ fun CameraScreen(
         }
     }
 
-    // ── Content ──────────────────────────────────────────────────────────
     if (!hasPermission) {
         PermissionPlaceholder(
             onRequestPermission = { permissionLauncher.launch(Manifest.permission.CAMERA) },
@@ -130,10 +131,6 @@ fun CameraScreen(
         )
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Camera + controls
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun CameraContent(
@@ -177,7 +174,7 @@ private fun CameraContent(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Step 1 Result View: Raw Frame Inspection Gallery + Composite Toggle
+// Step 1 Result View: Fast Slide & Auto-Play Flipbook Motion Preview
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -191,10 +188,30 @@ private fun Step1ResultView(
     modifier: Modifier = Modifier,
 ) {
     var viewMode by remember { mutableStateOf(PipelineMode.RAW_FRAME_GALLERY) }
+    var isPlayingFlipbook by remember { mutableStateOf(false) }
+
+    // Auto-Play Flipbook Animation Loop (15 FPS motion playback)
+    LaunchedEffect(isPlayingFlipbook, rawFrames.size) {
+        if (!isPlayingFlipbook || rawFrames.isEmpty()) return@LaunchedEffect
+        while (isPlayingFlipbook) {
+            delay(66) // ~15 FPS
+            val nextIdx = (selectedIndex + 1) % rawFrames.size
+            onSelectFrame(nextIdx)
+        }
+    }
 
     val displayedBitmap = when (viewMode) {
         PipelineMode.RAW_FRAME_GALLERY -> rawFrames.getOrNull(selectedIndex) ?: compositeBitmap
         PipelineMode.COMPOSITE -> compositeBitmap ?: rawFrames.getOrNull(selectedIndex)
+    }
+
+    val thumbnailListState = rememberLazyListState()
+
+    // Keep active thumbnail scrolled into view
+    LaunchedEffect(selectedIndex) {
+        if (rawFrames.isNotEmpty()) {
+            thumbnailListState.animateScrollToItem(selectedIndex)
+        }
     }
 
     Box(
@@ -202,17 +219,35 @@ private fun Step1ResultView(
             .fillMaxSize()
             .background(MotionSurface),
     ) {
-        // 1. Large Main View
+        // 1. Large Main View with Horizontal Drag Gesture for Fast Slide
         displayedBitmap?.let { bmp ->
             Image(
                 bitmap = bmp.asImageBitmap(),
                 contentDescription = "Displayed frame",
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(rawFrames.size) {
+                        if (viewMode == PipelineMode.RAW_FRAME_GALLERY && rawFrames.isNotEmpty()) {
+                            var dragAccumulator = 0f
+                            detectHorizontalDragGestures { change, dragAmount ->
+                                change.consume()
+                                isPlayingFlipbook = false
+                                dragAccumulator += dragAmount
+                                if (dragAccumulator < -40f) { // Drag left -> next frame
+                                    onSelectFrame((selectedIndex + 1).coerceAtMost(rawFrames.lastIndex))
+                                    dragAccumulator = 0f
+                                } else if (dragAccumulator > 40f) { // Drag right -> prev frame
+                                    onSelectFrame((selectedIndex - 1).coerceAtLeast(0))
+                                    dragAccumulator = 0f
+                                }
+                            }
+                        }
+                    },
                 contentScale = ContentScale.Fit,
             )
         }
 
-        // 2. Top Mode Selector Pill (Raw Gallery vs Composite)
+        // 2. Top Mode Selector & Auto-Play Controls
         Surface(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -223,22 +258,45 @@ private fun Step1ResultView(
         ) {
             Row(
                 modifier = Modifier.padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 ModeTabChip(
                     title = "Raw Frames (${rawFrames.size})",
                     selected = viewMode == PipelineMode.RAW_FRAME_GALLERY,
-                    onClick = { viewMode = PipelineMode.RAW_FRAME_GALLERY },
+                    onClick = {
+                        viewMode = PipelineMode.RAW_FRAME_GALLERY
+                    },
                 )
                 ModeTabChip(
                     title = "Composite",
                     selected = viewMode == PipelineMode.COMPOSITE,
-                    onClick = { viewMode = PipelineMode.COMPOSITE },
+                    onClick = {
+                        isPlayingFlipbook = false
+                        viewMode = PipelineMode.COMPOSITE
+                    },
                 )
+
+                if (viewMode == PipelineMode.RAW_FRAME_GALLERY && rawFrames.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Surface(
+                        onClick = { isPlayingFlipbook = !isPlayingFlipbook },
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (isPlayingFlipbook) MotionBlue else Color(0xFF2A2A2E),
+                    ) {
+                        Text(
+                            text = if (isPlayingFlipbook) "⏸ Pause" else "▶ Play",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        )
+                    }
+                }
             }
         }
 
-        // 3. Bottom Panel with Raw Frame Thumbnails & Retake Button
+        // 3. Bottom Panel with Fast Thumbnail Strip & Retake Button
         Surface(
             modifier = Modifier.align(Alignment.BottomCenter),
             shape = PanelShape,
@@ -254,17 +312,17 @@ private fun Step1ResultView(
             ) {
                 if (viewMode == PipelineMode.RAW_FRAME_GALLERY && rawFrames.isNotEmpty()) {
                     Text(
-                        text = "FRAME ${selectedIndex + 1} OF ${rawFrames.size}",
+                        text = "FRAME ${selectedIndex + 1} OF ${rawFrames.size} (SLIDE TO MOTION PREVIEW)",
                         color = MotionPanelTextMuted,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 1.5.sp,
+                        letterSpacing = 1.2.sp,
                     )
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Horizontal Thumbnail Strip
                     LazyRow(
+                        state = thumbnailListState,
                         contentPadding = PaddingValues(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.fillMaxWidth(),
@@ -274,7 +332,10 @@ private fun Step1ResultView(
                                 bitmap = frameBmp,
                                 index = idx,
                                 isSelected = idx == selectedIndex,
-                                onClick = { onSelectFrame(idx) },
+                                onClick = {
+                                    isPlayingFlipbook = false
+                                    onSelectFrame(idx)
+                                },
                             )
                         }
                     }
@@ -282,7 +343,6 @@ private fun Step1ResultView(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // Retake button
                 Surface(
                     onClick = onRetake,
                     shape = RoundedCornerShape(24.dp),
@@ -306,10 +366,6 @@ private fun Step1ResultView(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Mode Tab Chip (Raw Frames vs Composite)
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun ModeTabChip(
     title: String,
@@ -326,14 +382,10 @@ private fun ModeTabChip(
             color = if (selected) Color.White else MotionTextMuted,
             fontSize = 12.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
         )
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Raw Thumbnail Card Item
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun RawThumbnailItem(
@@ -362,7 +414,6 @@ private fun RawThumbnailItem(
                 modifier = Modifier.fillMaxSize(),
             )
 
-            // Index badge
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -381,10 +432,6 @@ private fun RawThumbnailItem(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Permission placeholder
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun PermissionPlaceholder(

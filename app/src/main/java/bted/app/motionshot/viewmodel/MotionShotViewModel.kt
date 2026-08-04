@@ -1,10 +1,12 @@
 package bted.app.motionshot.viewmodel
 
+import android.app.Application
 import android.graphics.Bitmap
 import android.os.SystemClock
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import bted.app.motionshot.capture.FrameAnalyzer
+import bted.app.motionshot.data.PreferencesRepository
 import bted.app.motionshot.engine.EngineConfig
 import bted.app.motionshot.engine.MotionEngine
 import bted.app.motionshot.engine.MotionEngineFactory
@@ -19,18 +21,29 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * State holder supporting Step 1: Raw Frame Inspection Gallery.
+ * State holder enforcing Strict Time Window Execution.
  *
- * Preserves raw captured bitmaps for visual inspection before compositing.
+ * Guarantees capture loop hard-stops at exactly totalDurationMs (e.g. 1.0s),
+ * preventing camera frame delivery from overrunning the selected timer.
  */
-class MotionShotViewModel(
+class MotionShotViewModel @JvmOverloads constructor(
+    application: Application,
     private val engine: MotionEngine = MotionEngineFactory.create(),
-) : ViewModel() {
+) : AndroidViewModel(application) {
 
-    // ── State ────────────────────────────────────────────────────────────
-    private val _uiState = MutableStateFlow(MotionShotUiState())
+    private val prefsRepo = PreferencesRepository(application)
+
+    private val _uiState = MutableStateFlow(
+        MotionShotUiState(
+            timerSeconds = prefsRepo.timerSeconds,
+            captureCount = prefsRepo.captureCount,
+            shutterSpeedNs = prefsRepo.shutterSpeedNs,
+            isoValue = prefsRepo.isoValue,
+        )
+    )
     val uiState: StateFlow<MotionShotUiState> = _uiState.asStateFlow()
 
     private val _previewBitmap = MutableStateFlow<Bitmap?>(null)
@@ -42,27 +55,28 @@ class MotionShotViewModel(
     private val _selectedFrameIndex = MutableStateFlow(0)
     val selectedFrameIndex: StateFlow<Int> = _selectedFrameIndex.asStateFlow()
 
-    // ── Capture pipeline ─────────────────────────────────────────────────
     val frameAnalyzer = FrameAnalyzer()
 
     private val capturedFrames = mutableListOf<Bitmap>()
     private var captureJob: Job? = null
 
-    // ── UI actions ───────────────────────────────────────────────────────
-
     fun setTimer(seconds: Int) {
+        prefsRepo.timerSeconds = seconds
         _uiState.update { it.copy(timerSeconds = seconds) }
     }
 
     fun setCaptureCount(count: Int) {
+        prefsRepo.captureCount = count
         _uiState.update { it.copy(captureCount = count) }
     }
 
     fun setShutterSpeed(shutterSpeedNs: Long) {
+        prefsRepo.shutterSpeedNs = shutterSpeedNs
         _uiState.update { it.copy(shutterSpeedNs = shutterSpeedNs) }
     }
 
     fun setIsoValue(iso: Int) {
+        prefsRepo.isoValue = iso
         _uiState.update { it.copy(isoValue = iso) }
     }
 
@@ -80,7 +94,7 @@ class MotionShotViewModel(
         }
     }
 
-    // ── Internal capture logic ───────────────────────────────────────────
+    // ── Strict Time-Bounded Capture Engine ───────────────────────────────
 
     private fun startCapture() {
         clearRawFrames()
@@ -95,11 +109,11 @@ class MotionShotViewModel(
 
         captureJob = viewModelScope.launch(Dispatchers.Default) {
             val startTimeMs = SystemClock.elapsedRealtime()
+            val endTimeMs = startTimeMs + totalDurationMs
 
-            for (i in 0 until count) {
-                if (!isActive) return@launch
-
-                val targetTimeMs = startTimeMs + (i * intervalStepMs).toLong()
+            while (isActive && SystemClock.elapsedRealtime() < endTimeMs && capturedFrames.size < count) {
+                val currentIndex = capturedFrames.size
+                val targetTimeMs = startTimeMs + (currentIndex * intervalStepMs).toLong()
                 val nowMs = SystemClock.elapsedRealtime()
                 val waitTimeMs = targetTimeMs - nowMs
 
@@ -107,15 +121,26 @@ class MotionShotViewModel(
                     delay(waitTimeMs)
                 }
 
-                if (!isActive) return@launch
+                val remainingWindowMs = endTimeMs - SystemClock.elapsedRealtime()
+                if (!isActive || remainingWindowMs <= 5L) break
 
                 frameAnalyzer.shouldCapture.set(true)
-                val frame = frameAnalyzer.frameChannel.receive()
-                capturedFrames.add(frame)
 
-                _uiState.update { it.copy(framesCaptured = i + 1) }
+                // Time-bounded receive: hard timeout if remaining timer window expires
+                val frameResult = withTimeoutOrNull(remainingWindowMs) {
+                    frameAnalyzer.frameChannel.receive()
+                }
+
+                if (frameResult != null) {
+                    capturedFrames.add(frameResult)
+                    _uiState.update { it.copy(framesCaptured = capturedFrames.size) }
+                } else {
+                    // Time window expired — stop immediately
+                    break
+                }
             }
 
+            // Guaranteed exit at or before totalDurationMs
             finishCapture()
         }
     }
@@ -138,12 +163,10 @@ class MotionShotViewModel(
         _uiState.update { it.copy(phase = CapturePhase.Processing) }
         viewModelScope.launch(Dispatchers.Default) {
             try {
-                // Step 1: Preserve raw frame copies for inspection
                 val frameCopies = capturedFrames.map { it.copy(Bitmap.Config.ARGB_8888, false) }
                 _rawFrames.value = frameCopies
                 _selectedFrameIndex.value = 0
 
-                // Step 2: Composite image
                 val compositeResult = engine.process(
                     frames = capturedFrames,
                     config = EngineConfig(threshold = 45),
@@ -184,7 +207,12 @@ class MotionShotViewModel(
         _previewBitmap.value?.recycle()
         _previewBitmap.value = null
         clearRawFrames()
-        _uiState.update { MotionShotUiState() }
+        _uiState.update { MotionShotUiState(
+            timerSeconds = prefsRepo.timerSeconds,
+            captureCount = prefsRepo.captureCount,
+            shutterSpeedNs = prefsRepo.shutterSpeedNs,
+            isoValue = prefsRepo.isoValue,
+        ) }
     }
 
     override fun onCleared() {
