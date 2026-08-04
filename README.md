@@ -252,15 +252,16 @@ cd MotionShot
 
 ---
 
-## 🤝 Community & Contributions
+## 🤝 Community & Documentation Links
 
-Contributions to MotionShot are welcomed. Please review the following resources before contributing:
-
-- 🤝 [Contributing Guidelines](CONTRIBUTING.md)
-- 📐 [Architecture Documentation](docs/architecture.md)
+- 📐 [Architecture Guide](docs/architecture.md)
+- 🔄 [System Design & Sequence Flow](docs/system-design.md)
 - 📝 [Architecture Decision Records (ADRs)](docs/technical-decisions.md)
-- 🔐 [Security Policy](SECURITY.md)
-- 📜 [Code of Conduct](CODE_OF_CONDUCT.md)
+- 🚀 [Product Roadmap](docs/ROADMAP.md)
+- 💬 [Getting Support](docs/SUPPORT.md)
+- 🤝 [Contributing Guidelines](CONTRIBUTING.md)
+- 🔐 [Security Policy](.github/SECURITY.md)
+- 📜 [Code of Conduct](.github/CODE_OF_CONDUCT.md)
 
 ---
 

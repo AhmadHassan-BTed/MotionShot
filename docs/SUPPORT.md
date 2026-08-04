@@ -7,9 +7,9 @@ Thank you for using MotionShot! Below are the support resources available to use
 ## 🔍 Documentation & FAQ
 
 Before requesting support, please check:
-1. [README.md](README.md) — Setup instructions and feature documentation.
-2. [docs/architecture.md](docs/architecture.md) — Technical architecture overview.
-3. [docs/contributing-guide.md](docs/contributing-guide.md) — Developer setup guide.
+1. [README.md](../README.md) — Setup instructions and feature documentation.
+2. [docs/architecture.md](architecture.md) — Technical architecture overview.
+3. [docs/contributing-guide.md](contributing-guide.md) — Developer setup guide.
 
 ---
 

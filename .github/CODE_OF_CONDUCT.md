@@ -22,10 +22,6 @@ Examples of unacceptable behavior include:
 * Publishing others' private information, such as a physical or electronic address, without explicit permission
 * Other conduct which could reasonably be considered inappropriate in a professional setting
 
-## Scope
-
-This Code of Conduct applies within all project spaces, and it also applies when an individual is representing the project or its community in public spaces.
-
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting the project maintainer, **Ahmad Hassan (B-Ted)**, at the repository contact point. All complaints will be reviewed and investigated and will result in a response that is deemed necessary and appropriate to the circumstances.
