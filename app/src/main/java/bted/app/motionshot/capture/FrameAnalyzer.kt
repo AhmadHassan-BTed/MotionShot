@@ -10,20 +10,15 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * High-throughput CameraX [ImageAnalysis.Analyzer] that copies raw pixel data
- * from [ImageProxy] in < 1ms, closes the image immediately to unblock the
- * camera HAL pipeline, then converts to [Bitmap] asynchronously on a
- * background thread pool.
- *
- * This architecture ensures CameraX delivers every hardware frame without
- * dropping, because [analyze] returns almost instantly.
+ * High-throughput CameraX [ImageAnalysis.Analyzer] supporting software Digital Signal Amplification.
  */
 class FrameAnalyzer : ImageAnalysis.Analyzer {
 
     val isStreaming = AtomicBoolean(false)
+    var brightnessBoost: Float = 1.0f
+
     val frameChannel = Channel<Bitmap>(capacity = Channel.UNLIMITED)
 
-    // Background thread pool for async bitmap conversion
     private val conversionPool = Executors.newFixedThreadPool(
         (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(2)
     )
@@ -31,16 +26,13 @@ class FrameAnalyzer : ImageAnalysis.Analyzer {
     override fun analyze(image: ImageProxy) {
         if (isStreaming.get()) {
             try {
-                // Step 1: Snapshot raw YUV byte planes in < 1ms
                 val snapshot = RawFrameSnapshot.capture(image)
-
-                // Step 2: Close ImageProxy IMMEDIATELY to unblock camera pipeline
                 image.close()
 
-                // Step 3: Convert snapshot -> Bitmap asynchronously off-camera-thread
+                val currentBoost = brightnessBoost
                 conversionPool.execute {
                     try {
-                        val bitmap = snapshot.toBitmap()
+                        val bitmap = snapshot.toBitmap(currentBoost)
                         val sent = frameChannel.trySend(bitmap)
                         if (sent.isFailure) {
                             bitmap.recycle()
@@ -60,9 +52,7 @@ class FrameAnalyzer : ImageAnalysis.Analyzer {
 }
 
 /**
- * Immutable snapshot of raw YUV_420_888 plane data copied from an [ImageProxy].
- * Capturing a snapshot takes < 1ms (just ByteBuffer.get into byte arrays).
- * The [ImageProxy] can be closed immediately after capture.
+ * Immutable snapshot of raw YUV_420_888 plane data with hardware + digital gain scaling.
  */
 class RawFrameSnapshot private constructor(
     private val yData: ByteArray,
@@ -107,9 +97,11 @@ class RawFrameSnapshot private constructor(
         }
     }
 
-    fun toBitmap(): Bitmap {
+    fun toBitmap(brightnessBoost: Float = 1.0f): Bitmap {
         val argb = IntArray(width * height)
         var idx = 0
+
+        val gain = brightnessBoost.coerceAtLeast(1.0f)
 
         for (y in 0 until height) {
             val yRow = y * yRowStride
@@ -125,6 +117,13 @@ class RawFrameSnapshot private constructor(
                 var r = yVal + ((1436 * vVal) shr 10)
                 var g = yVal - ((352 * uVal + 731 * vVal) shr 10)
                 var b = yVal + ((1815 * uVal) shr 10)
+
+                // Apply Digital Signal Amplification Gain
+                if (gain > 1.01f) {
+                    r = (r * gain).toInt()
+                    g = (g * gain).toInt()
+                    b = (b * gain).toInt()
+                }
 
                 if (r < 0) r = 0 else if (r > 255) r = 255
                 if (g < 0) g = 0 else if (g > 255) g = 255

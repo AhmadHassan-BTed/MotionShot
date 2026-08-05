@@ -82,6 +82,7 @@ class MotionShotViewModel @JvmOverloads constructor(
 
     fun setBrightnessBoost(boost: Float) {
         prefsRepo.brightnessBoost = boost
+        frameAnalyzer.brightnessBoost = boost
         _uiState.update { it.copy(brightnessBoost = boost) }
     }
 

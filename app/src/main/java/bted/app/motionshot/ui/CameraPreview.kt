@@ -1,5 +1,8 @@
 package bted.app.motionshot.ui
 
+import android.content.Context
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
 import android.util.Range
 import android.util.Size
@@ -57,7 +60,8 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
 /**
- * Production-Grade 30-60+ FPS Hardware CameraX Viewfinder.
+ * Native Super Slow-Motion Hardware CameraX Viewfinder.
+ * Queries device CameraCharacteristics for 120 FPS / 240 FPS hardware slow-motion ranges.
  */
 @Composable
 fun CameraPreview(
@@ -101,6 +105,32 @@ fun CameraPreview(
     var boundCameraInstance by remember { mutableStateOf<Camera?>(null) }
     var zoomRatioState by remember { mutableStateOf(1.0f) }
 
+    // Query native device hardware slow-motion FPS ranges (120 FPS / 240 FPS)
+    val nativeMaxFpsRange = remember(isFrontCamera) {
+        try {
+            val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            val cameraIdList = cameraManager.cameraIdList
+            val targetId = if (isFrontCamera && cameraIdList.size > 1) cameraIdList[1] else cameraIdList[0]
+            val characteristics = cameraManager.getCameraCharacteristics(targetId)
+            val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            val highSpeedRanges = map?.highSpeedVideoFpsRanges
+
+            if (!highSpeedRanges.isNullOrEmpty()) {
+                // Find range with highest upper FPS limit (e.g. 120 or 240 FPS)
+                highSpeedRanges.maxByOrNull { it.upper } ?: Range(60, 120)
+            } else {
+                Range(60, 120)
+            }
+        } catch (_: Exception) {
+            Range(60, 120)
+        }
+    }
+
+    // Synchronize analyzer brightness gain
+    LaunchedEffect(brightnessBoost) {
+        analyzer.brightnessBoost = brightnessBoost
+    }
+
     // Tap-to-Focus Ring animation states
     var tapPoint by remember { mutableStateOf<Offset?>(null) }
     val focusRingScale = remember { Animatable(1.5f) }
@@ -127,8 +157,8 @@ fun CameraPreview(
         }
     }
 
-    // Dynamic Hardware Parameter Updates
-    LaunchedEffect(shutterSpeedNs, isoValue, brightnessBoost, isFlashEnabled, isFocusLocked, isAwbLocked, isHighFpsVideoMode, isFrontCamera, activeCamera2Control) {
+    // Dynamic Hardware Parameter Updates for Native Hardware Slow-Motion Readout
+    LaunchedEffect(shutterSpeedNs, isoValue, brightnessBoost, isFlashEnabled, isFocusLocked, isAwbLocked, isHighFpsVideoMode, isFrontCamera, activeCamera2Control, nativeMaxFpsRange) {
         val camera2Control = activeCamera2Control ?: return@LaunchedEffect
         val builder = CaptureRequestOptions.Builder()
 
@@ -164,7 +194,7 @@ fun CameraPreview(
         }
 
         // Apply Exposure Compensation EV steps
-        val evSteps = ((brightnessBoost - 1.0f) * 3f).roundToInt()
+        val evSteps = ((brightnessBoost - 1.0f) * 4f).roundToInt().coerceIn(0, 12)
         builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, evSteps)
 
         // Manual Shutter / ISO vs Auto Exposure
@@ -173,25 +203,25 @@ fun CameraPreview(
 
             if (isShutterManual) {
                 builder.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, shutterSpeedNs)
-                val minFrameDurationNs = shutterSpeedNs.coerceAtLeast(4_166_666L) // 1/240s min frame duration
+                val minFrameDurationNs = shutterSpeedNs.coerceAtLeast(4_166_666L)
                 builder.setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, minFrameDurationNs)
             }
 
-            // Calculate Auto ISO Sensitivity boost when shutter speed is manual
+            // High ISO Hybrid Sensitivity Calculation
             val effectiveIso = if (isIsoManual) {
                 (isoValue * brightnessBoost).roundToInt().coerceIn(100, 102_400)
             } else if (isShutterManual) {
                 val baseIso = 400f * (2_000_000L.toFloat() / shutterSpeedNs.coerceAtLeast(100_000L))
                 (baseIso * brightnessBoost).roundToInt().coerceIn(200, 51_200)
             } else {
-                (200f * brightnessBoost).roundToInt().coerceIn(100, 25_600)
+                (400f * brightnessBoost).roundToInt().coerceIn(100, 25_600)
             }
 
             builder.setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, effectiveIso)
         } else {
             builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
-            // Fixed FPS range target: Lock hardware clock to 60 FPS in Video Mode, 30 FPS in Photo Mode
-            val fpsRange = if (isHighFpsVideoMode) Range(60, 60) else Range(30, 30)
+            // Lock camera HAL to device's maximum hardware slow-motion range (120 / 240 FPS)
+            val fpsRange = if (isHighFpsVideoMode) nativeMaxFpsRange else Range(30, 30)
             builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
         }
 
@@ -201,7 +231,7 @@ fun CameraPreview(
         }
     }
 
-    DisposableEffect(lifecycleOwner, isHighFpsVideoMode, isFrontCamera) {
+    DisposableEffect(lifecycleOwner, isFrontCamera) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
         cameraProviderFuture.addListener(
@@ -212,20 +242,18 @@ fun CameraPreview(
                     .build()
                     .also { it.surfaceProvider = previewView.surfaceProvider }
 
-                // Dynamic Stream Resolution: 640x480 for MODE VIDEO, 1280x720 for MODE PHOTO
-                val targetResolution = if (isHighFpsVideoMode) Size(640, 480) else Size(1280, 720)
+                val targetResolution = Size(1280, 720)
                 val resolutionSelector = ResolutionSelector.Builder()
                     .setResolutionStrategy(
                         ResolutionStrategy(
                             targetResolution,
-                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER,
+                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
                         )
                     )
                     .build()
 
                 val targetRotation = previewView.display?.rotation ?: android.view.Surface.ROTATION_0
 
-                // 32-Deep Frame Queue for high-speed streaming
                 val imageAnalysis = ImageAnalysis.Builder()
                     .setTargetRotation(targetRotation)
                     .setResolutionSelector(resolutionSelector)
