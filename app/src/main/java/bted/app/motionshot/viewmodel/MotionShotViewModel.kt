@@ -109,6 +109,18 @@ class MotionShotViewModel @JvmOverloads constructor(
         _uiState.update { it.copy(isAwbLocked = newAwb) }
     }
 
+    fun toggleSensorMode() {
+        val newMode = !_uiState.value.isHighFpsVideoMode
+        prefsRepo.isHighFpsVideoMode = newMode
+        _uiState.update { it.copy(isHighFpsVideoMode = newMode) }
+    }
+
+    fun toggleFrontCamera() {
+        val newCam = !_uiState.value.isFrontCamera
+        prefsRepo.isFrontCamera = newCam
+        _uiState.update { it.copy(isFrontCamera = newCam) }
+    }
+
     fun setZoomRatio(zoom: Float) {
         _uiState.update { it.copy(zoomRatio = zoom.coerceIn(1.0f, 20.0f)) }
     }

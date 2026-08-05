@@ -42,6 +42,14 @@ class PreferencesRepository(context: Context) {
         get() = prefs.getBoolean(KEY_AWB_LOCK, false)
         set(value) = prefs.edit().putBoolean(KEY_AWB_LOCK, value).apply()
 
+    var isHighFpsVideoMode: Boolean
+        get() = prefs.getBoolean(KEY_SENSOR_MODE, true)
+        set(value) = prefs.edit().putBoolean(KEY_SENSOR_MODE, value).apply()
+
+    var isFrontCamera: Boolean
+        get() = prefs.getBoolean(KEY_FRONT_CAM, false)
+        set(value) = prefs.edit().putBoolean(KEY_FRONT_CAM, value).apply()
+
     var brightnessBoost: Float
         get() = prefs.getFloat(KEY_BRIGHTNESS, 1.0f)
         set(value) = prefs.edit().putFloat(KEY_BRIGHTNESS, value).apply()
@@ -56,6 +64,8 @@ class PreferencesRepository(context: Context) {
         private const val KEY_FOCUS_LOCK = "focus_locked"
         private const val KEY_GRID = "grid_enabled"
         private const val KEY_AWB_LOCK = "awb_locked"
+        private const val KEY_SENSOR_MODE = "high_fps_video_mode"
+        private const val KEY_FRONT_CAM = "front_camera"
         private const val KEY_BRIGHTNESS = "brightness_boost"
     }
 }

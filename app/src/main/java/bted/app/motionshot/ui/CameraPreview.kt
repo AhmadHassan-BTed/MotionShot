@@ -56,7 +56,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
 /**
- * Full-bleed CameraX preview with Auto-Exposure Sensitivity Guard to prevent black images at high shutter speeds.
+ * Full-bleed CameraX preview with persistent executor lifecycle and robust mode toggling.
  */
 @Composable
 fun CameraPreview(
@@ -67,6 +67,8 @@ fun CameraPreview(
     isFlashEnabled: Boolean,
     isFocusLocked: Boolean,
     isAwbLocked: Boolean,
+    isHighFpsVideoMode: Boolean,
+    isFrontCamera: Boolean,
     onZoomChanged: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -86,6 +88,13 @@ fun CameraPreview(
 
     val analysisExecutor = remember {
         Executors.newSingleThreadExecutor()
+    }
+
+    // Cleanly shutdown analysisExecutor ONLY when CameraPreview composable is destroyed
+    DisposableEffect(Unit) {
+        onDispose {
+            analysisExecutor.shutdown()
+        }
     }
 
     var activeCamera2Control by remember { mutableStateOf<Camera2CameraControl?>(null) }
@@ -108,22 +117,31 @@ fun CameraPreview(
         tapPoint = null
     }
 
-    // Torch / Flash Toggle Control
-    LaunchedEffect(isFlashEnabled, boundCameraInstance) {
+    // Torch / Flash Control via CameraControl
+    LaunchedEffect(isFlashEnabled, isFrontCamera, boundCameraInstance) {
         val camera = boundCameraInstance ?: return@LaunchedEffect
-        try {
-            camera.cameraControl.enableTorch(isFlashEnabled)
-        } catch (_: Exception) {
+        if (!isFrontCamera) {
+            try {
+                camera.cameraControl.enableTorch(isFlashEnabled)
+            } catch (_: Exception) {
+            }
         }
     }
 
     // Dynamic Hardware Parameter Updates
-    LaunchedEffect(shutterSpeedNs, isoValue, brightnessBoost, isFocusLocked, isAwbLocked, activeCamera2Control) {
+    LaunchedEffect(shutterSpeedNs, isoValue, brightnessBoost, isFlashEnabled, isFocusLocked, isAwbLocked, isFrontCamera, activeCamera2Control) {
         val camera2Control = activeCamera2Control ?: return@LaunchedEffect
         val builder = CaptureRequestOptions.Builder()
 
         val isShutterManual = shutterSpeedNs > 0L
         val isIsoManual = isoValue > 0
+
+        // Flash Torch via Camera2 CaptureRequest
+        if (isFlashEnabled && !isFrontCamera) {
+            builder.setCaptureRequestOption(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
+        } else {
+            builder.setCaptureRequestOption(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF)
+        }
 
         // Enable Optical Image Stabilization (OIS) in hardware
         builder.setCaptureRequestOption(
@@ -160,7 +178,7 @@ fun CameraPreview(
                 builder.setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, minFrameDurationNs)
             }
 
-            // Calculate Auto ISO Sensitivity boost when shutter speed is manual to prevent black images
+            // Calculate Auto ISO Sensitivity boost when shutter speed is manual
             val effectiveIso = if (isIsoManual) {
                 (isoValue * brightnessBoost).roundToInt().coerceIn(100, 102_400)
             } else if (isShutterManual) {
@@ -175,7 +193,7 @@ fun CameraPreview(
             builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
             builder.setCaptureRequestOption(
                 CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
-                android.util.Range(60, 120),
+                android.util.Range(30, 60),
             )
         }
 
@@ -185,7 +203,7 @@ fun CameraPreview(
         }
     }
 
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner, isHighFpsVideoMode, isFrontCamera) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
         cameraProviderFuture.addListener(
@@ -196,10 +214,11 @@ fun CameraPreview(
                     .build()
                     .also { it.surfaceProvider = previewView.surfaceProvider }
 
+                val targetResolution = if (isHighFpsVideoMode) Size(1280, 720) else Size(1920, 1080)
                 val resolutionSelector = ResolutionSelector.Builder()
                     .setResolutionStrategy(
                         ResolutionStrategy(
-                            Size(1280, 720),
+                            targetResolution,
                             ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
                         )
                     )
@@ -210,15 +229,21 @@ fun CameraPreview(
                 val imageAnalysis = ImageAnalysis.Builder()
                     .setTargetRotation(targetRotation)
                     .setResolutionSelector(resolutionSelector)
-                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setImageQueueDepth(4)
                     .build()
                     .also { it.setAnalyzer(analysisExecutor, analyzer) }
+
+                val cameraSelector = if (isFrontCamera) {
+                    CameraSelector.DEFAULT_FRONT_CAMERA
+                } else {
+                    CameraSelector.DEFAULT_BACK_CAMERA
+                }
 
                 cameraProvider.unbindAll()
                 val boundCamera = cameraProvider.bindToLifecycle(
                     lifecycleOwner,
-                    CameraSelector.DEFAULT_BACK_CAMERA,
+                    cameraSelector,
                     preview,
                     imageAnalysis,
                 )
@@ -236,7 +261,6 @@ fun CameraPreview(
             }
             boundCameraInstance = null
             activeCamera2Control = null
-            analysisExecutor.shutdown()
         }
     }
 

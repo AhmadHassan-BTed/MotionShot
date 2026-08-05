@@ -149,6 +149,8 @@ private fun CameraContent(
             isFlashEnabled = state.isFlashEnabled,
             isFocusLocked = state.isFocusLocked,
             isAwbLocked = state.isAwbLocked,
+            isHighFpsVideoMode = state.isHighFpsVideoMode,
+            isFrontCamera = state.isFrontCamera,
             onZoomChanged = viewModel::setZoomRatio,
             modifier = Modifier.fillMaxSize(),
         )
@@ -162,10 +164,14 @@ private fun CameraContent(
             isFocusLocked = state.isFocusLocked,
             isGridEnabled = state.isGridEnabled,
             isAwbLocked = state.isAwbLocked,
+            isHighFpsVideoMode = state.isHighFpsVideoMode,
+            isFrontCamera = state.isFrontCamera,
             onFlashToggle = viewModel::toggleFlash,
             onFocusLockToggle = viewModel::toggleFocusLock,
             onGridToggle = viewModel::toggleGrid,
             onAwbToggle = viewModel::toggleAwbLock,
+            onSensorModeToggle = viewModel::toggleSensorMode,
+            onFrontCameraToggle = viewModel::toggleFrontCamera,
             modifier = Modifier.align(Alignment.TopCenter),
         )
 

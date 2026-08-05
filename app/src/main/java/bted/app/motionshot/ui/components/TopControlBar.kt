@@ -25,6 +25,8 @@ import bted.app.motionshot.ui.theme.MotionBlue
 
 /**
  * Translucent top overlay bar with faded pro camera controls:
+ * - MODE (High-FPS Video Sensor vs High-Res Photo Sensor Toggle)
+ * - CAM (Back Camera vs Front Selfie Camera Toggle)
  * - GRID (Rule-of-Thirds Grid Toggle)
  * - AWB (Auto White Balance Lock Toggle)
  * - AF (Auto Focus Lock Toggle)
@@ -37,10 +39,14 @@ fun TopControlBar(
     isFocusLocked: Boolean,
     isGridEnabled: Boolean,
     isAwbLocked: Boolean,
+    isHighFpsVideoMode: Boolean,
+    isFrontCamera: Boolean,
     onFlashToggle: () -> Unit,
     onFocusLockToggle: () -> Unit,
     onGridToggle: () -> Unit,
     onAwbToggle: () -> Unit,
+    onSensorModeToggle: () -> Unit,
+    onFrontCameraToggle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val flashColor by animateColorAsState(
@@ -63,6 +69,28 @@ fun TopControlBar(
         targetValue = if (isFocusLocked) MotionBlue.copy(alpha = 0.25f) else Color(0x22FFFFFF),
         animationSpec = tween(200),
         label = "focusBg",
+    )
+
+    val modeColor by animateColorAsState(
+        targetValue = if (isHighFpsVideoMode) MotionBlue else Color(0xFFFF9800),
+        animationSpec = tween(200),
+        label = "modeColor",
+    )
+    val modeBg by animateColorAsState(
+        targetValue = if (isHighFpsVideoMode) MotionBlue.copy(alpha = 0.25f) else Color(0x33FF9800),
+        animationSpec = tween(200),
+        label = "modeBg",
+    )
+
+    val camColor by animateColorAsState(
+        targetValue = if (isFrontCamera) Color(0xFFE91E63) else Color.White.copy(alpha = 0.55f),
+        animationSpec = tween(200),
+        label = "camColor",
+    )
+    val camBg by animateColorAsState(
+        targetValue = if (isFrontCamera) Color(0x33E91E63) else Color(0x22FFFFFF),
+        animationSpec = tween(200),
+        label = "camBg",
     )
 
     val gridColor by animateColorAsState(
@@ -91,7 +119,7 @@ fun TopControlBar(
         modifier = modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -99,16 +127,32 @@ fun TopControlBar(
         Text(
             text = "MOTIONSHOT",
             color = Color.White.copy(alpha = 0.45f),
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = 2.sp,
+            letterSpacing = 1.5.sp,
         )
 
         // Right Pro Controls Strip
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            // SENSOR MODE Pill (Video High-FPS vs Photo Still Quality)
+            ControlPill(
+                text = if (isHighFpsVideoMode) "MODE VIDEO" else "MODE PHOTO",
+                color = modeColor,
+                backgroundColor = modeBg,
+                onClick = onSensorModeToggle,
+            )
+
+            // FRONT / BACK CAMERA Pill
+            ControlPill(
+                text = if (isFrontCamera) "CAM FRONT" else "CAM BACK",
+                color = camColor,
+                backgroundColor = camBg,
+                onClick = onFrontCameraToggle,
+            )
+
             // GRID Pill
             ControlPill(
                 text = if (isGridEnabled) "GRID 3x3" else "GRID OFF",
@@ -163,10 +207,10 @@ private fun ControlPill(
         Text(
             text = text,
             color = color,
-            fontSize = 10.sp,
+            fontSize = 9.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.5.sp,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
         )
     }
 }

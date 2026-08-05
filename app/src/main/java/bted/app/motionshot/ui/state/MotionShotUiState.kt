@@ -87,6 +87,8 @@ data class MotionShotUiState(
     val isFocusLocked: Boolean = false,
     val isGridEnabled: Boolean = true,
     val isAwbLocked: Boolean = false,
+    val isHighFpsVideoMode: Boolean = true, // High-FPS Video Sensor vs Full HD Photo Sensor
+    val isFrontCamera: Boolean = false,
     val zoomRatio: Float = 1.0f,
     val framesCaptured: Int = 0,
     val phase: CapturePhase = CapturePhase.Idle,
