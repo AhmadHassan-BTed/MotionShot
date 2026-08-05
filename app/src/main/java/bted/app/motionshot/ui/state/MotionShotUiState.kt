@@ -67,6 +67,11 @@ object CameraParameterUtils {
         if (iso <= 0) return "Auto"
         return if (iso >= 1000) "${iso / 1000}k ISO" else "ISO $iso"
     }
+
+    fun getBrightnessLabel(boost: Float): String {
+        val ev = (boost - 1.0f)
+        return if (ev <= 0.05f) "0.0 EV" else String.format("+%.1f EV", ev)
+    }
 }
 
 /**
@@ -77,6 +82,12 @@ data class MotionShotUiState(
     val captureCount: Int = 15,
     val shutterSpeedNs: Long = 2_000_000L, // Default 1/500s
     val isoValue: Int = 0,                  // Default Auto ISO
+    val brightnessBoost: Float = 1.0f,      // 1.0x to 4.0x gain (+0.0 EV to +3.0 EV)
+    val isFlashEnabled: Boolean = false,
+    val isFocusLocked: Boolean = false,
+    val isGridEnabled: Boolean = true,
+    val isAwbLocked: Boolean = false,
+    val zoomRatio: Float = 1.0f,
     val framesCaptured: Int = 0,
     val phase: CapturePhase = CapturePhase.Idle,
 )

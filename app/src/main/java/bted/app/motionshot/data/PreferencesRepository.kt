@@ -26,11 +26,36 @@ class PreferencesRepository(context: Context) {
         get() = prefs.getInt(KEY_ISO, 0) // Default Auto
         set(value) = prefs.edit().putInt(KEY_ISO, value).apply()
 
+    var isFlashEnabled: Boolean
+        get() = prefs.getBoolean(KEY_FLASH, false)
+        set(value) = prefs.edit().putBoolean(KEY_FLASH, value).apply()
+
+    var isFocusLocked: Boolean
+        get() = prefs.getBoolean(KEY_FOCUS_LOCK, false)
+        set(value) = prefs.edit().putBoolean(KEY_FOCUS_LOCK, value).apply()
+
+    var isGridEnabled: Boolean
+        get() = prefs.getBoolean(KEY_GRID, true)
+        set(value) = prefs.edit().putBoolean(KEY_GRID, value).apply()
+
+    var isAwbLocked: Boolean
+        get() = prefs.getBoolean(KEY_AWB_LOCK, false)
+        set(value) = prefs.edit().putBoolean(KEY_AWB_LOCK, value).apply()
+
+    var brightnessBoost: Float
+        get() = prefs.getFloat(KEY_BRIGHTNESS, 1.0f)
+        set(value) = prefs.edit().putFloat(KEY_BRIGHTNESS, value).apply()
+
     companion object {
         private const val PREFS_NAME = "motionshot_user_settings"
         private const val KEY_TIMER = "timer_seconds"
         private const val KEY_COUNT = "capture_count"
         private const val KEY_SHUTTER = "shutter_speed_ns"
         private const val KEY_ISO = "iso_value"
+        private const val KEY_FLASH = "flash_enabled"
+        private const val KEY_FOCUS_LOCK = "focus_locked"
+        private const val KEY_GRID = "grid_enabled"
+        private const val KEY_AWB_LOCK = "awb_locked"
+        private const val KEY_BRIGHTNESS = "brightness_boost"
     }
 }

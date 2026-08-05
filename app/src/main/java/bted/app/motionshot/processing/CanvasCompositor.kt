@@ -2,6 +2,8 @@ package bted.app.motionshot.processing
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
@@ -10,33 +12,21 @@ import android.graphics.PorterDuffXfermode
  * Sequential Fade Effect options (matching Sony Motion Shot).
  */
 enum class FadeEffect {
-    /** All subject instances have full opacity (100%). */
     UNIFORM,
-
-    /** Earlier frames in the sequence fade out (become semi-transparent), latest frame is 100% opaque. */
     FADE_OUT,
-
-    /** Earlier frames are 100% opaque, latest frame fades out. */
     FADE_IN,
 }
 
 /**
- * Ultra-fast Sony Motion Shot Canvas compositor with Pixel-to-Pixel Handheld Stabilization.
- *
- * Performance & Quality features:
- * - 2D Translation Alignment ([ImageStabilizer]) locks background pixels in place to eliminate camera jitter.
- * - Normalized Chromaticity & BT.601 Luminance differencer ([FrameDifferencer]).
- * - Reuses flat [IntArray] buffers across all frame iterations (zero GC churn).
- * - Sparse morphological opening (20x faster mask processing).
- * - Fast boundary edge alpha feathering.
- * - Immediate intermediate bitmap recycling.
+ * Ultra-fast Sony Motion Shot Canvas compositor with Multi-Core Parallel Processing.
  */
 object CanvasCompositor {
 
-    fun composite(
+    suspend fun composite(
         frames: List<Bitmap>,
         threshold: Int = 45,
         fadeEffect: FadeEffect = FadeEffect.FADE_OUT,
+        brightnessBoost: Float = 1.0f,
     ): Bitmap {
         require(frames.size >= 2) { "At least 2 frames are required for compositing." }
 
@@ -45,15 +35,19 @@ object CanvasCompositor {
         val height = baseFrame.height
         val totalPixels = width * height
 
-        // Mutable result bitmap initialized with Base Frame
         val resultBitmap = baseFrame.copy(Bitmap.Config.ARGB_8888, true)
+
+        // Apply Brightness Boost gain to full canvas base background if requested
+        if (brightnessBoost > 1.05f) {
+            applyFullCanvasBrightness(resultBitmap, brightnessBoost)
+        }
+
         val canvas = Canvas(resultBitmap)
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_OVER)
         }
 
-        // Shared buffers allocated ONCE for the entire compositing pass
         val basePixels = IntArray(totalPixels)
         val currPixels = IntArray(totalPixels)
         val alignedPixels = IntArray(totalPixels)
@@ -64,15 +58,11 @@ object CanvasCompositor {
 
         baseFrame.getPixels(basePixels, 0, width, 0, 0, width, height)
 
-        val overlayCount = frames.size - 1
-
         for (i in 1 until frames.size) {
-            val currFrame = frames[i]
-            if (currFrame.width != width || currFrame.height != height) continue
+            val currentFrame = frames[i]
+            currentFrame.getPixels(currPixels, 0, width, 0, 0, width, height)
 
-            currFrame.getPixels(currPixels, 0, width, 0, 0, width, height)
-
-            // Step 1: Pixel-to-pixel background stabilization & alignment
+            // 1. Handheld 2D Alignment
             val offset = ImageStabilizer.findAlignmentOffset(
                 basePixels = basePixels,
                 currPixels = currPixels,
@@ -89,8 +79,8 @@ object CanvasCompositor {
                 dy = offset.dy,
             )
 
-            // Step 2: Normalized Chromaticity & Luminance Frame Differencing on aligned pixels
-            FrameDifferencer.computeMask(
+            // 2. Parallel Multi-Core Normalized Chromaticity Differencing
+            FrameDifferencer.computeMaskParallel(
                 basePixels = basePixels,
                 currPixels = alignedPixels,
                 outputMask = rawMask,
@@ -99,58 +89,102 @@ object CanvasCompositor {
                 chromaThreshold = threshold,
             )
 
-            // Step 3: Sparse Morphological Opening (Erode -> Dilate into cleanMask)
-            MorphologyOps.open(
+            // 3. Parallel Multi-Core 3x3 Morphological Opening
+            MorphologyOps.openingParallel(
                 inputMask = rawMask,
-                tempBuffer = tempMask,
-                outputBuffer = cleanMask,
+                tempMask = tempMask,
+                outputMask = cleanMask,
                 width = width,
                 height = height,
             )
 
-            // Step 4: Sequence Alpha Fade factor
-            val sequenceAlphaFactor = when (fadeEffect) {
+            // 4. Calculate Sequential Opacity Alpha
+            val opacityAlpha = when (fadeEffect) {
                 FadeEffect.UNIFORM -> 1.0f
-                FadeEffect.FADE_OUT -> 0.35f + 0.65f * (i.toFloat() / overlayCount)
-                FadeEffect.FADE_IN -> 1.0f - 0.65f * ((i - 1).toFloat() / overlayCount)
+                FadeEffect.FADE_OUT -> 0.35f + 0.65f * (i.toFloat() / (frames.size - 1))
+                FadeEffect.FADE_IN -> 1.0f - 0.65f * (i.toFloat() / (frames.size - 1))
             }
 
-            // Step 5: Fast Masking & Alpha Feathering from aligned pixels
-            for (y in 0 until height) {
-                val rowOffset = y * width
-                for (x in 0 until width) {
-                    val idx = rowOffset + x
+            paint.alpha = (opacityAlpha * 255).toInt().coerceIn(0, 255)
 
-                    if (cleanMask[idx] == 1) {
-                        val pixelColor = alignedPixels[idx]
-                        val origAlpha = (pixelColor shr 24) and 0xFF
+            // 5. Apply Alpha Masking, Brightness Gain Boost & Fast Edge Feathering
+            applyMaskAndFeather(
+                srcPixels = alignedPixels,
+                mask = cleanMask,
+                dstPixels = maskedPixels,
+                width = width,
+                height = height,
+                brightnessBoost = brightnessBoost,
+            )
 
-                        // Fast 4-neighbor boundary test for soft edge feathering
-                        val isEdge = (x > 0 && cleanMask[idx - 1] == 0) ||
-                                (x < width - 1 && cleanMask[idx + 1] == 0) ||
-                                (y > 0 && cleanMask[idx - width] == 0) ||
-                                (y < height - 1 && cleanMask[idx + width] == 0)
-
-                        val edgeFactor = if (isEdge) 0.6f else 1.0f
-                        val finalAlpha = (origAlpha * sequenceAlphaFactor * edgeFactor).toInt().coerceIn(0, 255)
-
-                        maskedPixels[idx] = (finalAlpha shl 24) or (pixelColor and 0x00FFFFFF)
-                    } else {
-                        maskedPixels[idx] = 0x00000000
-                    }
-                }
-            }
-
-            // Step 6: Draw overlay onto canvas
-            val overlayBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            overlayBitmap.setPixels(maskedPixels, 0, width, 0, 0, width, height)
-
-            canvas.drawBitmap(overlayBitmap, 0f, 0f, paint)
-
-            // Step 7: Memory safety
-            overlayBitmap.recycle()
+            val layerBitmap = Bitmap.createBitmap(maskedPixels, width, height, Bitmap.Config.ARGB_8888)
+            canvas.drawBitmap(layerBitmap, 0f, 0f, paint)
+            layerBitmap.recycle()
         }
 
         return resultBitmap
+    }
+
+    private fun applyFullCanvasBrightness(bitmap: Bitmap, brightnessBoost: Float) {
+        val canvas = Canvas(bitmap)
+        val cm = ColorMatrix(
+            floatArrayOf(
+                brightnessBoost, 0f, 0f, 0f, 0f,
+                0f, brightnessBoost, 0f, 0f, 0f,
+                0f, 0f, brightnessBoost, 0f, 0f,
+                0f, 0f, 0f, 1f, 0f,
+            )
+        )
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            colorFilter = ColorMatrixColorFilter(cm)
+        }
+        canvas.drawBitmap(bitmap, 0f, 0f, paint)
+    }
+
+    private fun applyMaskAndFeather(
+        srcPixels: IntArray,
+        mask: IntArray,
+        dstPixels: IntArray,
+        width: Int,
+        height: Int,
+        brightnessBoost: Float = 1.0f,
+    ) {
+        val totalPixels = width * height
+        for (i in 0 until totalPixels) {
+            val m = mask[i]
+            if (m == 1) {
+                if (brightnessBoost > 1.05f) {
+                    val p = srcPixels[i]
+                    val a = (p ushr 24) and 0xFF
+                    val r = (((p ushr 16) and 0xFF) * brightnessBoost).toInt().coerceAtMost(255)
+                    val g = (((p ushr 8) and 0xFF) * brightnessBoost).toInt().coerceAtMost(255)
+                    val b = ((p and 0xFF) * brightnessBoost).toInt().coerceAtMost(255)
+
+                    dstPixels[i] = (a shl 24) or (r shl 16) or (g shl 8) or b
+                } else {
+                    dstPixels[i] = srcPixels[i]
+                }
+            } else {
+                dstPixels[i] = 0 // Fully transparent
+            }
+        }
+
+        // Fast 1-pixel boundary edge feathering
+        for (y in 1 until height - 1) {
+            val rowOffset = y * width
+            for (x in 1 until width - 1) {
+                val idx = rowOffset + x
+                if (mask[idx] == 1) {
+                    val boundary = mask[idx - 1] == 0 || mask[idx + 1] == 0 ||
+                            mask[idx - width] == 0 || mask[idx + width] == 0
+                    if (boundary) {
+                        val argb = dstPixels[idx]
+                        val originalAlpha = (argb ushr 24) and 0xFF
+                        val softAlpha = (originalAlpha * 0.5f).toInt()
+                        dstPixels[idx] = (softAlpha shl 24) or (argb and 0x00FFFFFF)
+                    }
+                }
+            }
+        }
     }
 }

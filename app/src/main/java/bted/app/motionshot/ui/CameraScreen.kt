@@ -58,7 +58,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import bted.app.motionshot.engine.PipelineMode
 import bted.app.motionshot.ui.components.CaptureControls
+import bted.app.motionshot.ui.components.GridOverlay
 import bted.app.motionshot.ui.components.LoadingOverlay
+import bted.app.motionshot.ui.components.TopControlBar
 import bted.app.motionshot.ui.state.CapturePhase
 import bted.app.motionshot.ui.state.MotionShotUiState
 import bted.app.motionshot.ui.theme.MotionBlue
@@ -143,7 +145,28 @@ private fun CameraContent(
             analyzer = viewModel.frameAnalyzer,
             shutterSpeedNs = state.shutterSpeedNs,
             isoValue = state.isoValue,
+            brightnessBoost = state.brightnessBoost,
+            isFlashEnabled = state.isFlashEnabled,
+            isFocusLocked = state.isFocusLocked,
+            isAwbLocked = state.isAwbLocked,
+            onZoomChanged = viewModel::setZoomRatio,
             modifier = Modifier.fillMaxSize(),
+        )
+
+        if (state.isGridEnabled) {
+            GridOverlay(modifier = Modifier.fillMaxSize())
+        }
+
+        TopControlBar(
+            isFlashEnabled = state.isFlashEnabled,
+            isFocusLocked = state.isFocusLocked,
+            isGridEnabled = state.isGridEnabled,
+            isAwbLocked = state.isAwbLocked,
+            onFlashToggle = viewModel::toggleFlash,
+            onFocusLockToggle = viewModel::toggleFocusLock,
+            onGridToggle = viewModel::toggleGrid,
+            onAwbToggle = viewModel::toggleAwbLock,
+            modifier = Modifier.align(Alignment.TopCenter),
         )
 
         Surface(
@@ -158,6 +181,7 @@ private fun CameraContent(
                 onFrameCountSelected = viewModel::setCaptureCount,
                 onShutterSpeedSelected = viewModel::setShutterSpeed,
                 onIsoSelected = viewModel::setIsoValue,
+                onBrightnessSelected = viewModel::setBrightnessBoost,
                 onCaptureToggle = viewModel::onCaptureToggle,
                 modifier = Modifier.navigationBarsPadding(),
             )

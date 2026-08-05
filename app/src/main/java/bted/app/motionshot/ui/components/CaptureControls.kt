@@ -59,10 +59,10 @@ import bted.app.motionshot.ui.theme.MotionPanelRing
 import bted.app.motionshot.ui.theme.MotionPanelText
 import bted.app.motionshot.ui.theme.MotionPanelTextMuted
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Public: ultra-compact capture controls with Continuous Shutter & ISO Sliders
-// ─────────────────────────────────────────────────────────────────────────────
-
+/**
+ * Capture Controls featuring Continuous Shutter, ISO, and Brightness Gain Sliders.
+ * Zero emojis.
+ */
 @Composable
 fun CaptureControls(
     state: MotionShotUiState,
@@ -70,6 +70,7 @@ fun CaptureControls(
     onFrameCountSelected: (Int) -> Unit,
     onShutterSpeedSelected: (Long) -> Unit,
     onIsoSelected: (Int) -> Unit,
+    onBrightnessSelected: (Float) -> Unit,
     onCaptureToggle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -126,7 +127,7 @@ fun CaptureControls(
             enabled = isIdle,
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(2.dp))
 
         // ── Continuous ISO Slider ────────────────────────────────────────
         ContinuousSliderRow(
@@ -140,7 +141,21 @@ fun CaptureControls(
             enabled = isIdle,
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(2.dp))
+
+        // ── Continuous Brightness Gain Slider ────────────────────────────
+        ContinuousSliderRow(
+            label = "BRIGHTNESS",
+            valueText = CameraParameterUtils.getBrightnessLabel(state.brightnessBoost),
+            progress = (state.brightnessBoost - 1.0f) / 3.0f,
+            onProgressChanged = { p ->
+                val newBoost = 1.0f + p * 3.0f
+                onBrightnessSelected(newBoost)
+            },
+            enabled = isIdle,
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         // ── Capture button ───────────────────────────────────────────────
         CaptureButton(
@@ -158,12 +173,11 @@ fun CaptureControls(
         StatusLabel(state = state)
     }
 
-    // ── Custom Timer Dialog ──────────────────────────────────────────────
     if (showCustomTimerDialog) {
         CustomInputDialog(
             title = "Custom Timer (seconds)",
             initialValue = state.timerSeconds,
-            range = 1..60,
+            range = 1..Int.MAX_VALUE,
             onDismiss = { showCustomTimerDialog = false },
             onConfirm = { customValue ->
                 onTimerSelected(customValue)
@@ -172,12 +186,11 @@ fun CaptureControls(
         )
     }
 
-    // ── Custom Frame Count Dialog ────────────────────────────────────────
     if (showCustomFrameDialog) {
         CustomInputDialog(
             title = "Custom Frame Count",
             initialValue = state.captureCount,
-            range = 2..50,
+            range = 2..Int.MAX_VALUE,
             onDismiss = { showCustomFrameDialog = false },
             onConfirm = { customValue ->
                 onFrameCountSelected(customValue)
@@ -186,10 +199,6 @@ fun CaptureControls(
         )
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Continuous Slider Row (Shutter / ISO)
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun ContinuousSliderRow(
@@ -234,14 +243,10 @@ private fun ContinuousSliderRow(
             ),
             modifier = Modifier
                 .fillMaxWidth(0.92f)
-                .height(24.dp),
+                .height(20.dp),
         )
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Selector column (label + horizontal text items including Custom button)
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun SelectorColumn(
@@ -322,10 +327,6 @@ private fun SelectorColumn(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Custom numeric input dialog
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun CustomInputDialog(
     title: String,
@@ -379,10 +380,10 @@ private fun CustomInputDialog(
             TextButton(
                 onClick = {
                     val parsed = textValue.toIntOrNull()
-                    if (parsed != null && parsed in range) {
+                    if (parsed != null && parsed >= range.first) {
                         onConfirm(parsed)
                     } else {
-                        errorMessage = "Enter a value between ${range.first} and ${range.last}"
+                        errorMessage = "Enter a value $\u2265 ${range.first}"
                     }
                 },
             ) {
@@ -405,10 +406,6 @@ private fun CustomInputDialog(
         shape = RoundedCornerShape(18.dp),
     )
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Capture button — tap to start/stop, with progress ring
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun CaptureButton(
@@ -445,7 +442,7 @@ private fun CaptureButton(
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .size(64.dp)
+            .size(60.dp)
             .scale(scale)
             .pointerInput(enabled) {
                 if (!enabled) return@pointerInput
@@ -498,10 +495,6 @@ private fun CaptureButton(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Status label
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun StatusLabel(state: MotionShotUiState) {

@@ -5,15 +5,11 @@ import android.graphics.Matrix
 import androidx.camera.core.ImageProxy
 
 /**
- * Fast YUV to ARGB_8888 Bitmap converter leveraging CameraX native [ImageProxy.toBitmap].
- *
- * Uses native C++ hardware acceleration underneath, reducing frame conversion time
- * from ~900ms down to ~10ms.
+ * High-Speed Accelerated YUV to ARGB_8888 Bitmap Converter.
  */
 object YuvToRgb {
 
     fun convert(image: ImageProxy): Bitmap {
-        // CameraX built-in native conversion (C++ accelerated)
         val bitmap = image.toBitmap()
 
         val degrees = image.imageInfo.rotationDegrees

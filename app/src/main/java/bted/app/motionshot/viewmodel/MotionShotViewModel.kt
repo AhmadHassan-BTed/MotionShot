@@ -14,7 +14,6 @@ import bted.app.motionshot.ui.state.CapturePhase
 import bted.app.motionshot.ui.state.MotionShotUiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,12 +21,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.roundToInt
 
 /**
- * State holder enforcing Strict Time Window Execution.
+ * State holder enforcing Exact Time Duration and Target Frame Count Subsampling.
  *
- * Guarantees capture loop hard-stops at exactly totalDurationMs (e.g. 1.0s),
- * preventing camera frame delivery from overrunning the selected timer.
+ * Captures all hardware frames delivered during totalDurationMs and downsamples
+ * evenly to deliver exactly captureCount frames spanning the selected timer window.
  */
 class MotionShotViewModel @JvmOverloads constructor(
     application: Application,
@@ -80,6 +80,39 @@ class MotionShotViewModel @JvmOverloads constructor(
         _uiState.update { it.copy(isoValue = iso) }
     }
 
+    fun setBrightnessBoost(boost: Float) {
+        prefsRepo.brightnessBoost = boost
+        _uiState.update { it.copy(brightnessBoost = boost) }
+    }
+
+    fun toggleFlash() {
+        val newFlash = !_uiState.value.isFlashEnabled
+        prefsRepo.isFlashEnabled = newFlash
+        _uiState.update { it.copy(isFlashEnabled = newFlash) }
+    }
+
+    fun toggleFocusLock() {
+        val newLock = !_uiState.value.isFocusLocked
+        prefsRepo.isFocusLocked = newLock
+        _uiState.update { it.copy(isFocusLocked = newLock) }
+    }
+
+    fun toggleGrid() {
+        val newGrid = !_uiState.value.isGridEnabled
+        prefsRepo.isGridEnabled = newGrid
+        _uiState.update { it.copy(isGridEnabled = newGrid) }
+    }
+
+    fun toggleAwbLock() {
+        val newAwb = !_uiState.value.isAwbLocked
+        prefsRepo.isAwbLocked = newAwb
+        _uiState.update { it.copy(isAwbLocked = newAwb) }
+    }
+
+    fun setZoomRatio(zoom: Float) {
+        _uiState.update { it.copy(zoomRatio = zoom.coerceIn(1.0f, 20.0f)) }
+    }
+
     fun selectRawFrame(index: Int) {
         if (index in 0 until _rawFrames.value.size) {
             _selectedFrameIndex.value = index
@@ -94,53 +127,68 @@ class MotionShotViewModel @JvmOverloads constructor(
         }
     }
 
-    // ── Strict Time-Bounded Capture Engine ───────────────────────────────
+    // ── Continuous High-Speed Capture & Uniform Subsampling ─────────────
 
     private fun startCapture() {
         clearRawFrames()
 
         val state = _uiState.value
-        val count = state.captureCount
+        val targetCount = state.captureCount
         val totalDurationMs = state.timerSeconds * 1000L
-
-        val intervalStepMs = if (count > 1) totalDurationMs.toDouble() / (count - 1) else 0.0
 
         _uiState.update { it.copy(phase = CapturePhase.Recording, framesCaptured = 0) }
 
         captureJob = viewModelScope.launch(Dispatchers.Default) {
+            val rawCollected = mutableListOf<Bitmap>()
             val startTimeMs = SystemClock.elapsedRealtime()
             val endTimeMs = startTimeMs + totalDurationMs
 
-            while (isActive && SystemClock.elapsedRealtime() < endTimeMs && capturedFrames.size < count) {
-                val currentIndex = capturedFrames.size
-                val targetTimeMs = startTimeMs + (currentIndex * intervalStepMs).toLong()
-                val nowMs = SystemClock.elapsedRealtime()
-                val waitTimeMs = targetTimeMs - nowMs
+            // Start continuous high-FPS frame streaming
+            frameAnalyzer.isStreaming.set(true)
 
-                if (waitTimeMs > 0) {
-                    delay(waitTimeMs)
-                }
+            while (isActive && SystemClock.elapsedRealtime() < endTimeMs) {
+                val remainingMs = endTimeMs - SystemClock.elapsedRealtime()
+                if (remainingMs <= 2L) break
 
-                val remainingWindowMs = endTimeMs - SystemClock.elapsedRealtime()
-                if (!isActive || remainingWindowMs <= 5L) break
-
-                frameAnalyzer.shouldCapture.set(true)
-
-                // Time-bounded receive: hard timeout if remaining timer window expires
-                val frameResult = withTimeoutOrNull(remainingWindowMs) {
+                val frame = withTimeoutOrNull(remainingMs) {
                     frameAnalyzer.frameChannel.receive()
-                }
+                } ?: break
 
-                if (frameResult != null) {
-                    capturedFrames.add(frameResult)
-                    _uiState.update { it.copy(framesCaptured = capturedFrames.size) }
-                } else {
-                    // Time window expired — stop immediately
-                    break
-                }
+                rawCollected.add(frame)
+                _uiState.update { it.copy(framesCaptured = rawCollected.size.coerceAtMost(targetCount)) }
             }
 
-            // Guaranteed exit at or before totalDurationMs
+            // Stop streaming immediately
+            frameAnalyzer.isStreaming.set(false)
+            drainChannel()
+
+            if (!isActive || rawCollected.isEmpty()) {
+                rawCollected.forEach { it.recycle() }
+                _uiState.update { it.copy(phase = CapturePhase.Idle, framesCaptured = 0) }
+                return@launch
+            }
+
+            // Subsample evenly to deliver EXACTLY targetCount frames across the timer window
+            if (rawCollected.size > targetCount && targetCount > 1) {
+                val step = (rawCollected.size - 1).toDouble() / (targetCount - 1)
+                val selectedIndices = mutableSetOf<Int>()
+
+                for (i in 0 until targetCount) {
+                    val idx = (i * step).roundToInt().coerceIn(0, rawCollected.lastIndex)
+                    selectedIndices.add(idx)
+                    capturedFrames.add(rawCollected[idx])
+                }
+
+                // Recycle intermediate unselected frames
+                rawCollected.forEachIndexed { idx, bitmap ->
+                    if (idx !in selectedIndices) {
+                        bitmap.recycle()
+                    }
+                }
+            } else {
+                capturedFrames.addAll(rawCollected)
+            }
+
             finishCapture()
         }
     }
@@ -148,7 +196,7 @@ class MotionShotViewModel @JvmOverloads constructor(
     private fun stopCapture() {
         captureJob?.cancel()
         captureJob = null
-        frameAnalyzer.shouldCapture.set(false)
+        frameAnalyzer.isStreaming.set(false)
         drainChannel()
 
         if (capturedFrames.size >= 2) {
@@ -169,7 +217,10 @@ class MotionShotViewModel @JvmOverloads constructor(
 
                 val compositeResult = engine.process(
                     frames = capturedFrames,
-                    config = EngineConfig(threshold = 45),
+                    config = EngineConfig(
+                        threshold = 45,
+                        brightnessBoost = _uiState.value.brightnessBoost,
+                    ),
                 )
 
                 _previewBitmap.value = compositeResult
@@ -185,7 +236,7 @@ class MotionShotViewModel @JvmOverloads constructor(
 
     private fun drainChannel() {
         while (true) {
-            val stale = frameAnalyzer.frameChannel.tryReceive().getOrNull() ?: break
+            val stale: Bitmap = frameAnalyzer.frameChannel.tryReceive().getOrNull() ?: break
             stale.recycle()
         }
     }
@@ -202,7 +253,7 @@ class MotionShotViewModel @JvmOverloads constructor(
     fun resetCapture() {
         captureJob?.cancel()
         captureJob = null
-        frameAnalyzer.shouldCapture.set(false)
+        frameAnalyzer.isStreaming.set(false)
         drainChannel()
         _previewBitmap.value?.recycle()
         _previewBitmap.value = null
