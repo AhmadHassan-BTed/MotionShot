@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "bted.app.motionshot"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "bted.app.motionshot"
