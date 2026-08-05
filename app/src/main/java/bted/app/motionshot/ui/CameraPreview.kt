@@ -1,6 +1,7 @@
 package bted.app.motionshot.ui
 
 import android.hardware.camera2.CaptureRequest
+import android.util.Range
 import android.util.Size
 import android.view.ViewGroup
 import androidx.camera.camera2.interop.Camera2CameraControl
@@ -56,7 +57,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
 /**
- * Full-bleed CameraX preview with persistent executor lifecycle and robust mode toggling.
+ * Production-Grade 30-60+ FPS Hardware CameraX Viewfinder.
  */
 @Composable
 fun CameraPreview(
@@ -90,7 +91,6 @@ fun CameraPreview(
         Executors.newSingleThreadExecutor()
     }
 
-    // Cleanly shutdown analysisExecutor ONLY when CameraPreview composable is destroyed
     DisposableEffect(Unit) {
         onDispose {
             analysisExecutor.shutdown()
@@ -106,7 +106,6 @@ fun CameraPreview(
     val focusRingScale = remember { Animatable(1.5f) }
     val focusRingAlpha = remember { Animatable(1.0f) }
 
-    // Trigger focus ring animation when tapped
     LaunchedEffect(tapPoint) {
         val point = tapPoint ?: return@LaunchedEffect
         focusRingScale.snapTo(1.5f)
@@ -129,7 +128,7 @@ fun CameraPreview(
     }
 
     // Dynamic Hardware Parameter Updates
-    LaunchedEffect(shutterSpeedNs, isoValue, brightnessBoost, isFlashEnabled, isFocusLocked, isAwbLocked, isFrontCamera, activeCamera2Control) {
+    LaunchedEffect(shutterSpeedNs, isoValue, brightnessBoost, isFlashEnabled, isFocusLocked, isAwbLocked, isHighFpsVideoMode, isFrontCamera, activeCamera2Control) {
         val camera2Control = activeCamera2Control ?: return@LaunchedEffect
         val builder = CaptureRequestOptions.Builder()
 
@@ -174,7 +173,7 @@ fun CameraPreview(
 
             if (isShutterManual) {
                 builder.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, shutterSpeedNs)
-                val minFrameDurationNs = shutterSpeedNs.coerceAtLeast(8_333_333L)
+                val minFrameDurationNs = shutterSpeedNs.coerceAtLeast(4_166_666L) // 1/240s min frame duration
                 builder.setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, minFrameDurationNs)
             }
 
@@ -191,10 +190,9 @@ fun CameraPreview(
             builder.setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, effectiveIso)
         } else {
             builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
-            builder.setCaptureRequestOption(
-                CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
-                android.util.Range(30, 60),
-            )
+            // Fixed FPS range target: Lock hardware clock to 60 FPS in Video Mode, 30 FPS in Photo Mode
+            val fpsRange = if (isHighFpsVideoMode) Range(60, 60) else Range(30, 30)
+            builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
         }
 
         try {
@@ -214,23 +212,25 @@ fun CameraPreview(
                     .build()
                     .also { it.surfaceProvider = previewView.surfaceProvider }
 
-                val targetResolution = if (isHighFpsVideoMode) Size(1280, 720) else Size(1920, 1080)
+                // Dynamic Stream Resolution: 640x480 for MODE VIDEO, 1280x720 for MODE PHOTO
+                val targetResolution = if (isHighFpsVideoMode) Size(640, 480) else Size(1280, 720)
                 val resolutionSelector = ResolutionSelector.Builder()
                     .setResolutionStrategy(
                         ResolutionStrategy(
                             targetResolution,
-                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER,
                         )
                     )
                     .build()
 
                 val targetRotation = previewView.display?.rotation ?: android.view.Surface.ROTATION_0
 
+                // 32-Deep Frame Queue for high-speed streaming
                 val imageAnalysis = ImageAnalysis.Builder()
                     .setTargetRotation(targetRotation)
                     .setResolutionSelector(resolutionSelector)
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .setImageQueueDepth(4)
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_BLOCK_PRODUCER)
+                    .setImageQueueDepth(32)
                     .build()
                     .also { it.setAnalyzer(analysisExecutor, analyzer) }
 

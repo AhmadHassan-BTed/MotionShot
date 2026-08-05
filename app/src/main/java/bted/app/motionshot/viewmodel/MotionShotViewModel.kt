@@ -170,6 +170,13 @@ class MotionShotViewModel @JvmOverloads constructor(
                 _uiState.update { it.copy(framesCaptured = rawCollected.size.coerceAtMost(targetCount)) }
             }
 
+            // Drain any remaining buffered frames collected during the timer window
+            while (isActive && rawCollected.size < targetCount) {
+                val bufferedFrame = frameAnalyzer.frameChannel.tryReceive().getOrNull() ?: break
+                rawCollected.add(bufferedFrame)
+                _uiState.update { it.copy(framesCaptured = rawCollected.size.coerceAtMost(targetCount)) }
+            }
+
             // Stop streaming immediately
             frameAnalyzer.isStreaming.set(false)
             drainChannel()
